@@ -37,9 +37,29 @@ jobs:
           app/build/outputs/apk/debug/app-debug.apk \
           app/build/outputs/apk/debug/app-debug-aligned.apk
 
+      - name: Sign APK with debug keystore
+        run: |
+          keytool -genkey -v \
+            -keystore debug.keystore \
+            -alias androiddebugkey \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass android \
+            -keypass android \
+            -dname "CN=Android Debug,O=Android,C=US"
+
+          $ANDROID_HOME/build-tools/$(ls $ANDROID_HOME/build-tools | tail -1)/apksigner sign \
+            --ks debug.keystore \
+            --ks-key-alias androiddebugkey \
+            --ks-pass pass:android \
+            --key-pass pass:android \
+            --out app/build/outputs/apk/debug/app-debug-signed.apk \
+            app/build/outputs/apk/debug/app-debug-aligned.apk
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: JEANNE_DARC_testing
-          path: app/build/outputs/apk/debug/app-debug-aligned.apk
+          path: app/build/outputs/apk/debug/app-debug-signed.apk
           retention-days: 30
