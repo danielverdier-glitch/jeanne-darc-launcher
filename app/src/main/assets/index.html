@@ -18,7 +18,7 @@ html,body{width:100vw;height:100vh;overflow:hidden;background:#0a1622;font-famil
   75%{transform:rotate(0.8deg) translateY(-1px)}
   100%{transform:rotate(0deg) translateY(0px)}
 }
-.barco-img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;object-position:center 62%;z-index:2;pointer-events:none}
+.barco-img{position:absolute;inset:0;background-repeat:no-repeat;background-size:contain;background-position:center 62%;z-index:2;pointer-events:none}
 .luz-svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:3}
 .cabo-svg{position:absolute;inset:0;width:100%;height:100%;z-index:4;pointer-events:none}
 /* STATUSBAR */
@@ -102,7 +102,7 @@ html,body{width:100vw;height:100vh;overflow:hidden;background:#0a1622;font-famil
       <path id="luzRoja"  d="M487 50 A6 6 0 0 0 487 62 Z" fill="#ff2020" filter="url(#glow-bc)" style="display:none"/>
       <path id="luzVerde" d="M487 50 A6 6 0 0 1 487 62 Z" fill="#00dd44" filter="url(#glow-bc)" style="display:none"/>
     </svg>
-    <img class="barco-img" id="barcoImg" src="" alt="">
+    <div class="barco-img" id="barcoImg"></div>
   </div>
 
   <svg class="cabo-svg" id="caboSvg" viewBox="0 0 1024 600" xmlns="http://www.w3.org/2000/svg" style="display:none">
@@ -394,7 +394,9 @@ function applyMode(){
   isNavigating?wrap.classList.add("pitching"):wrap.classList.remove("pitching");
 
   bg.src   = isNight ? IMG.bgNight  : IMG.bgDay;
-  bImg.src = isNavigating ? IMG.shipSail : IMG.shipNosail;
+  bImg.style.backgroundImage = 'url("'+(isNavigating ? IMG.shipSail : IMG.shipNosail)+'")';
+  // Trigger recalc once image is known (div doesn't fire load, call directly)
+  setTimeout(recalcFromBoat, 0);
 
   cabo.style.display=isNavigating?"none":"block";
   caboL.setAttribute("stroke", isNight?"#5a3010":"#6b4423");
@@ -521,19 +523,18 @@ window.addEventListener("resize",scaleToFit);
   var CAL_REL={c1x:337/1024,c1y:(425-13.2)/578.8, c2x:293/1024,c2y:(463-13.2)/578.8, lx:487/1024,ly:(56-13.2)/578.8};
   var calData={caboX1:337,caboY1:425,caboX2:293,caboY2:463,luzX:487,luzY:56};
 
-  // Recalculate screen coords from boat-relative fractions based on actual rendered image size
+  // All images are 1288x728 - use known dimensions directly
+  var BOAT_NAT_W=1288, BOAT_NAT_H=728;
   function recalcFromBoat(){
-    var img=document.getElementById("barcoImg");
-    if(!img.naturalWidth) return;
-    var scl=Math.min(1024/img.naturalWidth,600/img.naturalHeight);
-    var rW=img.naturalWidth*scl, rH=img.naturalHeight*scl;
+    var scl=Math.min(1024/BOAT_NAT_W, 600/BOAT_NAT_H);
+    var rW=BOAT_NAT_W*scl, rH=BOAT_NAT_H*scl;
     var rL=(1024-rW)/2, rT=(600-rH)*0.62;
     calData.caboX1=Math.round(CAL_REL.c1x*rW+rL); calData.caboY1=Math.round(CAL_REL.c1y*rH+rT);
     calData.caboX2=Math.round(CAL_REL.c2x*rW+rL); calData.caboY2=Math.round(CAL_REL.c2y*rH+rT);
     calData.luzX=Math.round(CAL_REL.lx*rW+rL);    calData.luzY=Math.round(CAL_REL.ly*rH+rT);
     applyCalib();
   }
-  document.getElementById("barcoImg").addEventListener("load", recalcFromBoat);
+  recalcFromBoat();
   try{ var s=localStorage.getItem(CAL_KEY); if(s) calData=JSON.parse(s); }catch(e){}
 
   function applyCalib(){
