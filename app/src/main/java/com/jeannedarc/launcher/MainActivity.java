@@ -1,6 +1,7 @@
 package com.jeannedarc.launcher;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
@@ -26,10 +27,16 @@ public class MainActivity extends Activity {
 
     private WebView webView;
     private static final String PREFS_NAME = "JeanneDArcPrefs";
+    private static final int REQUEST_PERMISSIONS = 1;
+    private static final String[] REQUIRED_PERMISSIONS = {
+        android.Manifest.permission.ACCESS_FINE_LOCATION,
+        android.Manifest.permission.ACCESS_COARSE_LOCATION
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        requestPermissionsIfNeeded();
 
         // Fullscreen landscape
         requestWindowFeature(Window.FEATURE_NO_TITLE);
@@ -80,6 +87,45 @@ public class MainActivity extends Activity {
 
         // Load the launcher
         webView.loadUrl("file:///android_asset/index.html");
+    }
+
+    private void requestPermissionsIfNeeded() {
+        boolean allGranted = true;
+        for (String perm : REQUIRED_PERMISSIONS) {
+            if (checkSelfPermission(perm) != PackageManager.PERMISSION_GRANTED) {
+                allGranted = false;
+                break;
+            }
+        }
+        if (!allGranted) {
+            requestPermissions(REQUIRED_PERMISSIONS, REQUEST_PERMISSIONS);
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode,
+            String[] permissions, int[] grantResults) {
+        if (requestCode == REQUEST_PERMISSIONS) {
+            for (int i = 0; i < permissions.length; i++) {
+                if (grantResults[i] == PackageManager.PERMISSION_DENIED
+                        && !shouldShowRequestPermissionRationale(permissions[i])) {
+                    // User ticked "Never ask again" — show dialog to go to Settings
+                    new AlertDialog.Builder(this)
+                        .setTitle("Permiso de ubicación necesario")
+                        .setMessage("Esta app necesita acceso al GPS. Activalo en Configuración → Permisos.")
+                        .setPositiveButton("Ir a Configuración", (d, w) -> {
+                            Intent intent = new Intent(
+                                android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                Uri.parse("package:" + getPackageName())
+                            );
+                            startActivity(intent);
+                        })
+                        .setNegativeButton("Cancelar", null)
+                        .show();
+                    return;
+                }
+            }
+        }
     }
 
     @Override
