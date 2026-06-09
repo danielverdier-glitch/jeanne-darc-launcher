@@ -98,15 +98,15 @@ html,body{width:100vw;height:100vh;overflow:hidden;background:#111;font-family:A
           <feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
         </filter>
       </defs>
-      <circle id="luzBlanca" cx="476" cy="70" r="6" fill="white" filter="url(#glow-w)" style="display:none"/>
-      <path id="luzRoja"  d="M476 64 A6 6 0 0 0 476 76 Z" fill="#ff2020" filter="url(#glow-bc)" style="display:none"/>
-      <path id="luzVerde" d="M476 64 A6 6 0 0 1 476 76 Z" fill="#00dd44" filter="url(#glow-bc)" style="display:none"/>
+      <circle id="luzBlanca" cx="487" cy="56" r="6" fill="white" filter="url(#glow-w)" style="display:none"/>
+      <path id="luzRoja"  d="M487 50 A6 6 0 0 0 487 62 Z" fill="#ff2020" filter="url(#glow-bc)" style="display:none"/>
+      <path id="luzVerde" d="M487 50 A6 6 0 0 1 487 62 Z" fill="#00dd44" filter="url(#glow-bc)" style="display:none"/>
     </svg>
     <img class="barco-img" id="barcoImg" src="" alt="">
   </div>
 
   <svg class="cabo-svg" id="caboSvg" viewBox="0 0 1024 600" xmlns="http://www.w3.org/2000/svg" style="display:none">
-    <line id="caboLine" x1="327" y1="424" x2="291" y2="449"
+    <line id="caboLine" x1="337" y1="425" x2="293" y2="463"
           stroke="#6b4423" stroke-width="2.5" stroke-linecap="round" opacity="0.95"/>
   </svg>
 
@@ -277,16 +277,17 @@ function renderBar(){
     lbl.textContent=b.lbl;
     d.appendChild(box); d.appendChild(lbl); bar.appendChild(d);
 
-    d.addEventListener("pointerup",function(e){
-      if(lpTimer) return;
-      e.stopPropagation();
-      tapBtn(i);
-    });
     d.addEventListener("pointerdown",function(e){
       lpIdx=i;
       lpTimer=setTimeout(function(){ lpTimer=null; showCtx(i,e.clientX,e.clientY); },LP_MS);
     });
-    ["pointerup","pointerleave","pointercancel"].forEach(function(ev){
+    d.addEventListener("pointerup",function(e){
+      if(!lpTimer) return; // long-press already fired
+      clearTimeout(lpTimer); lpTimer=null;
+      e.stopPropagation();
+      tapBtn(i);
+    });
+    ["pointerleave","pointercancel"].forEach(function(ev){
       d.addEventListener(ev,function(){ if(lpTimer){clearTimeout(lpTimer);lpTimer=null;} });
     });
   });
@@ -537,7 +538,25 @@ stripWhiteBg(IMG.shipSail,   function(u){ IMG.shipSail=u;   if(isNavigating)  do
 (function(){
   var CAL_KEY="jdCalib";
   var calOpen=false;
-  var calData={caboX1:327,caboY1:424,caboX2:291,caboY2:449,luzX:476,luzY:70};
+  // Default positions stored as fractions of the boat's rendered rect (1288x728 -> 1024x578.8 at top=13.2)
+  // Calibrated: caboX1=337,caboY1=425,caboX2=293,caboY2=463,luzX=487,luzY=56
+  var BOAT_DEF={left:0,top:13.2,w:1024,h:578.8};
+  var CAL_REL={c1x:337/1024,c1y:(425-13.2)/578.8, c2x:293/1024,c2y:(463-13.2)/578.8, lx:487/1024,ly:(56-13.2)/578.8};
+  var calData={caboX1:337,caboY1:425,caboX2:293,caboY2:463,luzX:487,luzY:56};
+
+  // Recalculate screen coords from boat-relative fractions based on actual rendered image size
+  function recalcFromBoat(){
+    var img=document.getElementById("barcoImg");
+    if(!img.naturalWidth) return;
+    var scl=Math.min(1024/img.naturalWidth,600/img.naturalHeight);
+    var rW=img.naturalWidth*scl, rH=img.naturalHeight*scl;
+    var rL=(1024-rW)/2, rT=(600-rH)*0.62;
+    calData.caboX1=Math.round(CAL_REL.c1x*rW+rL); calData.caboY1=Math.round(CAL_REL.c1y*rH+rT);
+    calData.caboX2=Math.round(CAL_REL.c2x*rW+rL); calData.caboY2=Math.round(CAL_REL.c2y*rH+rT);
+    calData.luzX=Math.round(CAL_REL.lx*rW+rL);    calData.luzY=Math.round(CAL_REL.ly*rH+rT);
+    applyCalib();
+  }
+  document.getElementById("barcoImg").addEventListener("load", recalcFromBoat);
   try{ var s=localStorage.getItem(CAL_KEY); if(s) calData=JSON.parse(s); }catch(e){}
 
   function applyCalib(){
