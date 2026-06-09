@@ -6,8 +6,8 @@
 <title>JEANNE D'ARC</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{width:100vw;height:100vh;overflow:hidden;background:#111;font-family:Arial,sans-serif;user-select:none;-webkit-user-select:none;display:flex;align-items:center;justify-content:center}
-.screen{width:1024px;height:600px;position:relative;overflow:hidden;transform-origin:top left}
+html,body{width:100vw;height:100vh;overflow:hidden;background:#111;font-family:Arial,sans-serif;user-select:none;-webkit-user-select:none}
+.screen{width:1024px;height:600px;position:absolute;top:50%;left:50%;transform-origin:center center;overflow:hidden}
 .bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;z-index:1}
 .barco-wrap{position:absolute;inset:0;z-index:2}
 .barco-wrap.pitching{animation:cabeceo 5s ease-in-out infinite;transform-origin:50% 62%}
@@ -504,15 +504,140 @@ init();
 
 function scaleToFit(){
   var s=document.getElementById("screen");
-  var scaleX=window.innerWidth/1024;
-  var scaleY=window.innerHeight/600;
-  var scale=Math.min(scaleX,scaleY);
-  s.style.transform="scale("+scale+")";
-  s.style.marginLeft=((window.innerWidth-1024*scale)/2)+"px";
-  s.style.marginTop=((window.innerHeight-600*scale)/2)+"px";
+  var scale=Math.min(window.innerWidth/1024, window.innerHeight/600);
+  s.style.transform="translate(-50%,-50%) scale("+scale+")";
 }
 scaleToFit();
 window.addEventListener("resize",scaleToFit);
+
+// -- Remove white background from ship images using canvas --
+function stripWhiteBg(src, cb){
+  var img=new Image();
+  img.onload=function(){
+    var c=document.createElement("canvas");
+    c.width=img.naturalWidth; c.height=img.naturalHeight;
+    var ctx=c.getContext("2d");
+    ctx.drawImage(img,0,0);
+    var d=ctx.getImageData(0,0,c.width,c.height);
+    var px=d.data;
+    for(var i=0;i<px.length;i+=4){
+      var r=px[i],g=px[i+1],b=px[i+2];
+      if(r>230&&g>230&&b>230) px[i+3]=0;
+      else if(r>200&&g>200&&b>200) px[i+3]=Math.round((255-r)*3);
+    }
+    ctx.putImageData(d,0,0);
+    cb(c.toDataURL("image/png"));
+  };
+  img.src=src;
+}
+stripWhiteBg(IMG.shipNosail, function(u){ IMG.shipNosail=u; if(!isNavigating) document.getElementById("barcoImg").src=u; });
+stripWhiteBg(IMG.shipSail,   function(u){ IMG.shipSail=u;   if(isNavigating)  document.getElementById("barcoImg").src=u; });
+
+// -- Calibration tool --
+(function(){
+  var CAL_KEY="jdCalib";
+  var calOpen=false;
+  var calData={caboX1:327,caboY1:424,caboX2:291,caboY2:449,luzX:476,luzY:70};
+  try{ var s=localStorage.getItem(CAL_KEY); if(s) calData=JSON.parse(s); }catch(e){}
+
+  function applyCalib(){
+    var cl=document.getElementById("caboLine");
+    cl.setAttribute("x1",calData.caboX1); cl.setAttribute("y1",calData.caboY1);
+    cl.setAttribute("x2",calData.caboX2); cl.setAttribute("y2",calData.caboY2);
+    var lx=calData.luzX, ly=calData.luzY;
+    document.getElementById("luzBlanca").setAttribute("cx",lx);
+    document.getElementById("luzBlanca").setAttribute("cy",ly);
+    document.getElementById("luzRoja").setAttribute("d","M"+lx+" "+(ly-6)+" A6 6 0 0 0 "+lx+" "+(ly+6)+" Z");
+    document.getElementById("luzVerde").setAttribute("d","M"+lx+" "+(ly-6)+" A6 6 0 0 1 "+lx+" "+(ly+6)+" Z");
+  }
+  applyCalib();
+
+  // Overlay HTML
+  var ov=document.createElement("div");
+  ov.id="calOv";
+  ov.style.cssText="position:fixed;inset:0;z-index:999;background:rgba(0,0,0,0.85);display:none;flex-direction:column;align-items:center;justify-content:center";
+  ov.innerHTML=[
+    '<div style="color:#7dd4f0;font-size:11px;letter-spacing:3px;margin-bottom:10px;text-transform:uppercase">Calibración de posiciones</div>',
+    '<div style="position:relative;width:1024px;height:600px;overflow:hidden;border:1px solid rgba(255,255,255,0.2)" id="calCanvas">',
+    '  <img id="calBg" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">',
+    '  <img id="calShip" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;object-position:center 62%">',
+    '  <svg style="position:absolute;inset:0;width:100%;height:100%" viewBox="0 0 1024 600" id="calSvg">',
+    '    <line id="calCaboPreview" stroke="#6b4423" stroke-width="2.5" stroke-linecap="round" opacity="0.95"/>',
+    '    <circle id="calDotC1" r="10" fill="#ff0" stroke="white" stroke-width="2" cursor="grab"/>',
+    '    <circle id="calDotC2" r="10" fill="#f80" stroke="white" stroke-width="2" cursor="grab"/>',
+    '    <circle id="calDotLuz" r="10" fill="#0df" stroke="white" stroke-width="2" cursor="grab"/>',
+    '    <text x="512" y="30" fill="rgba(255,255,255,0.5)" font-size="10" text-anchor="middle" font-family="Arial">',
+    '      🟡 Cabo inicio  🟠 Cabo fin  🔵 Luz mástil — Arrastrá los puntos</text>',
+    '  </svg>',
+    '</div>',
+    '<div style="display:flex;gap:14px;margin-top:12px">',
+    '  <div id="calSave" style="background:#2ecc71;color:#000;padding:10px 28px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:bold">Guardar</div>',
+    '  <div id="calCancel" style="background:rgba(255,255,255,0.15);color:white;padding:10px 28px;border-radius:8px;cursor:pointer;font-size:13px">Cancelar</div>',
+    '</div>'
+  ].join("");
+  document.body.appendChild(ov);
+
+  function openCal(){
+    calOpen=true;
+    ov.style.display="flex";
+    document.getElementById("calBg").src=IMG.bgDay;
+    document.getElementById("calShip").src=IMG.shipNosail;
+    updateCalDots();
+  }
+  function closeCal(){ calOpen=false; ov.style.display="none"; }
+
+  function updateCalDots(){
+    var d=calData;
+    var c1=document.getElementById("calDotC1");
+    c1.setAttribute("cx",d.caboX1); c1.setAttribute("cy",d.caboY1);
+    var c2=document.getElementById("calDotC2");
+    c2.setAttribute("cx",d.caboX2); c2.setAttribute("cy",d.caboY2);
+    var lz=document.getElementById("calDotLuz");
+    lz.setAttribute("cx",d.luzX); lz.setAttribute("cy",d.luzY);
+    var cp=document.getElementById("calCaboPreview");
+    cp.setAttribute("x1",d.caboX1); cp.setAttribute("y1",d.caboY1);
+    cp.setAttribute("x2",d.caboX2); cp.setAttribute("y2",d.caboY2);
+  }
+
+  // Drag logic
+  var dragging=null;
+  function svgCoords(e, svgEl){
+    var r=svgEl.getBoundingClientRect();
+    return { x:Math.round((e.clientX-r.left)/r.width*1024),
+             y:Math.round((e.clientY-r.top)/r.height*600) };
+  }
+  ["calDotC1","calDotC2","calDotLuz"].forEach(function(id){
+    document.getElementById(id).addEventListener("pointerdown",function(e){
+      e.stopPropagation(); dragging=id; this.setPointerCapture(e.pointerId);
+    });
+  });
+  document.getElementById("calSvg").addEventListener("pointermove",function(e){
+    if(!dragging) return;
+    var p=svgCoords(e,this);
+    if(dragging==="calDotC1"){ calData.caboX1=p.x; calData.caboY1=p.y; }
+    else if(dragging==="calDotC2"){ calData.caboX2=p.x; calData.caboY2=p.y; }
+    else if(dragging==="calDotLuz"){ calData.luzX=p.x; calData.luzY=p.y; }
+    updateCalDots();
+  });
+  document.getElementById("calSvg").addEventListener("pointerup",function(){ dragging=null; });
+
+  document.getElementById("calSave").addEventListener("click",function(){
+    try{ localStorage.setItem(CAL_KEY,JSON.stringify(calData)); }catch(e){}
+    applyCalib(); closeCal();
+  });
+  document.getElementById("calCancel").addEventListener("click",function(){ closeCal(); });
+
+  // Trigger: triple-tap on title
+  var tapCount=0, tapTimer=null;
+  document.getElementById("screen").addEventListener("pointerdown",function(e){
+    if(e.target.closest("#iconbar")||e.target.closest(".ctx-menu")||e.target.closest(".overlay")) return;
+    if(e.clientY > window.innerHeight*0.3) return;
+    tapCount++;
+    if(tapTimer) clearTimeout(tapTimer);
+    tapTimer=setTimeout(function(){ tapCount=0; },800);
+    if(tapCount>=3){ tapCount=0; clearTimeout(tapTimer); openCal(); }
+  });
+})();
 </script>
 </body>
 </html>
