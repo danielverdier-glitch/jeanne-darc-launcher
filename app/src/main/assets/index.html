@@ -115,8 +115,6 @@ html,body{width:100vw;height:100vh;overflow:hidden;background:#0a1622;font-famil
     <span class="s-gps-lbl">GPS</span>
     <div class="s-dot" id="gpsDot"></div>
     <span class="s-nogps" id="gpsNoSig"></span>
-    <div class="s-speed" id="sSp"><span class="s-speed-val" id="sSpV">--</span><span class="s-speed-unit">KN</span></div>
-    <div class="s-heading" id="sHd"><span class="s-heading-val" id="sHdV">--</span><span class="s-heading-unit">&#176;</span></div>
     <div class="s-spacer"></div>
     <div class="s-bars">
       <span style="height:6px"></span><span style="height:10px"></span>
@@ -135,13 +133,11 @@ html,body{width:100vw;height:100vh;overflow:hidden;background:#0a1622;font-famil
     <div class="p-label">Velocidad</div>
     <div class="p-box"><span class="p-val" id="spVal">--</span></div>
     <div class="p-unit">NUDOS</div>
-    <div class="p-status"><div class="s-dot" id="spDot"></div><span class="p-txt" id="spTxt">SIN GPS</span></div>
   </div>
   <div class="panel p-right" id="panelHd">
     <div class="p-label">Rumbo</div>
     <div class="p-box"><span class="p-val small" id="hdVal">--&#176;</span></div>
-    <div class="p-unit">GPS</div>
-    <div class="p-status"><div class="s-dot" id="hdDot"></div><span class="p-txt" id="hdTxt">ESPERANDO</span></div>
+    <div class="p-unit">GRADOS</div>
   </div>
 
   <div class="iconbar" id="iconbar"></div>
@@ -220,7 +216,7 @@ var FALLBACK_APPS = [
 
 // -- Default button definitions --
 var DEFAULT_BTNS = [
-  {lbl:"Navionics", pkg:"com.navionics.Navionics",
+  {lbl:"Boating", pkg:"com.garmin.marine.boating",
    bg:"linear-gradient(135deg,#0099ff,#0055cc)", border:null,
    svg:'<svg width="28" height="28" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="white" stroke-width="1.5" fill="none"/><path d="M6 12 Q12 6 18 12 Q12 18 6 12Z" fill="white"/></svg>'},
   {lbl:"Spotify", pkg:"com.spotify.music",
@@ -414,13 +410,7 @@ function onGpsPos(pos){
   document.getElementById("gpsNoSig").style.display="none";
   var spStr=spd.toFixed(1), hdStr=Math.round(hdg)+"°";
   document.getElementById("spVal").textContent=spStr;
-  document.getElementById("hdVal").textContent=hdStr+"°";
-  document.getElementById("sSpV").textContent=spStr;
-  document.getElementById("sHdV").textContent=hdStr;
-  document.getElementById("spDot").className="s-dot s-green";
-  document.getElementById("spTxt").textContent="GPS OK";
-  document.getElementById("hdDot").className="s-dot s-green";
-  document.getElementById("hdTxt").textContent="GPS OK";
+  document.getElementById("hdVal").textContent=hdStr;
   updateDayNight(pos.coords.latitude, pos.coords.longitude);
   handleSpeed(spd);
 }
@@ -429,11 +419,7 @@ function onGpsErr(){
   document.getElementById("gpsDot").className="s-dot s-red";
   var ns=document.getElementById("gpsNoSig");
   ns.style.display=""; ns.textContent="-sin señal-";
-  ["spVal","hdVal","sSpV","sHdV"].forEach(function(id){ document.getElementById(id).textContent="--"; });
-  document.getElementById("spDot").className="s-dot s-red";
-  document.getElementById("spTxt").textContent="SIN GPS";
-  document.getElementById("hdDot").className="s-dot s-red";
-  document.getElementById("hdTxt").textContent="ESPERANDO";
+  ["spVal","hdVal"].forEach(function(id){ document.getElementById(id).textContent="--"; });
   updateDayNightByTime();
 }
 function handleSpeed(spd){
