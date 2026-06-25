@@ -47,6 +47,9 @@ public class MainActivity extends Activity {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
         webView = new WebView(this);
+        // Force software rendering: some automotive head units have GPU
+        // compositors that fail to alpha-blend PNG transparency correctly.
+        webView.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
         setContentView(webView);
 
         // WebView settings
