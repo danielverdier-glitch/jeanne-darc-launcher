@@ -454,7 +454,9 @@ function handleSpeed(spd){
 }
 
 // -- Sunrise/sunset (NOAA simplified) --
+var manualOverride=false; // set by the long-press test gesture; blocks GPS/clock from fighting it
 function updateDayNight(lat,lon){
+  if(manualOverride) return;
   var now=new Date();
   var st=sunTimes(lat,lon,now);
   var m=now.getHours()*60+now.getMinutes();
@@ -462,6 +464,7 @@ function updateDayNight(lat,lon){
   applyMode();
 }
 function updateDayNightByTime(){
+  if(manualOverride) return;
   var h=new Date().getHours();
   isNight=(h>=20||h<6);
   applyMode();
@@ -643,7 +646,7 @@ window.addEventListener("resize",scaleToFit);
     if(e.clientY > window.innerHeight*0.3) return;
     pressTimer=setTimeout(function(){
       isNight=!isNight;
-      gpsOk=true; // stop the clock-driven updateDayNightByTime() from overriding this manual test toggle
+      manualOverride=true; // stop GPS/clock from silently reverting this manual test toggle
       applyMode();
     },900);
     pressTimer2=setTimeout(function(){
