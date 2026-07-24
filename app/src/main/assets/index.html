@@ -107,6 +107,7 @@ html,body{width:100vw;height:100vh;overflow:hidden;background:#0a1622;font-famil
   </div>
   <div id="imgDiag" style="position:absolute;top:30px;left:4px;z-index:99;font-size:10px;color:#0f0;background:rgba(0,0,0,0.5);padding:2px 4px;font-family:monospace"></div>
   <div id="boatDiag" style="position:absolute;top:42px;left:4px;z-index:99;font-size:10px;color:#0f0;background:rgba(0,0,0,0.5);padding:2px 4px;font-family:monospace"></div>
+  <div id="mastDiag" style="position:absolute;top:54px;left:4px;z-index:99;font-size:10px;color:#0f0;background:rgba(0,0,0,0.5);padding:2px 4px;font-family:monospace"></div>
 
   <svg class="cabo-svg" id="caboSvg" viewBox="0 0 1024 600" xmlns="http://www.w3.org/2000/svg" style="display:none">
     <line id="caboLine" x1="337" y1="425" x2="293" y2="463"
@@ -420,6 +421,16 @@ function applyMode(){
   }catch(e){
     document.getElementById("boatDiag").textContent="BOAT DIAG ERROR "+e.message;
   }
+
+  try{
+    var mastCs=getComputedStyle(mast);
+    var activeLight=isNavigating?(isNight?"luzRoja/luzVerde":"none"):(isNight?"luzBlanca":"none");
+    document.getElementById("mastDiag").textContent=
+      "MAST disp="+mastCs.display+" night="+isNight+" nav="+isNavigating+" activeLight="+activeLight+
+      " lB="+getComputedStyle(lB).display+" lR="+getComputedStyle(lR).display+" lV="+getComputedStyle(lV).display;
+  }catch(e){
+    document.getElementById("mastDiag").textContent="MAST DIAG ERROR "+e.message;
+  }
 }
 
 // -- GPS --
@@ -627,15 +638,28 @@ window.addEventListener("resize",scaleToFit);
   });
   document.getElementById("calCancel").addEventListener("click",function(){ closeCal(); });
 
-  // Trigger: triple-tap on title
-  var tapCount=0, tapTimer=null;
+  // Trigger: triple-tap on title opens calibration, long-press (900ms) forces day/night for testing
+  var tapCount=0, tapTimer=null, pressTimer=null, pressFired=false;
   document.getElementById("screen").addEventListener("pointerdown",function(e){
     if(e.target.closest("#iconbar")||e.target.closest(".ctx-menu")||e.target.closest(".overlay")) return;
     if(e.clientY > window.innerHeight*0.3) return;
+    pressFired=false;
+    pressTimer=setTimeout(function(){
+      pressFired=true;
+      isNight=!isNight;
+      gpsOk=true; // stop the clock-driven updateDayNightByTime() from overriding this manual test toggle
+      applyMode();
+    },900);
     tapCount++;
     if(tapTimer) clearTimeout(tapTimer);
     tapTimer=setTimeout(function(){ tapCount=0; },800);
     if(tapCount>=3){ tapCount=0; clearTimeout(tapTimer); openCal(); }
+  });
+  document.getElementById("screen").addEventListener("pointerup",function(){
+    if(pressTimer){ clearTimeout(pressTimer); pressTimer=null; }
+  });
+  document.getElementById("screen").addEventListener("pointercancel",function(){
+    if(pressTimer){ clearTimeout(pressTimer); pressTimer=null; }
   });
 })();
 </script>
