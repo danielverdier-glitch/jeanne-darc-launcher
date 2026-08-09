@@ -315,9 +315,14 @@ function openAppPicker(i){
   getInstalledApps().forEach(function(app){
     var el=document.createElement("div");
     el.className="app-item";
+    var unlaunchable=app.pkg.indexOf("unlaunchable:")===0;
+    if(unlaunchable) el.style.opacity="0.4";
     var ih=app.iconUrl?'<img src="'+app.iconUrl+'" width="30" height="30" style="border-radius:6px">':(app.icon||"&#x1F4F1;");
-    el.innerHTML='<div class="app-icon" style="background:rgba(255,255,255,0.08)">'+ih+'</div><span>'+app.name+'</span>';
-    el.addEventListener("click",function(){ assignApp(picIdx,app); closeAppPicker(); });
+    el.innerHTML='<div class="app-icon" style="background:rgba(255,255,255,0.08)">'+ih+'</div><span>'+app.name+(unlaunchable?" ⚠":"")+'</span>';
+    el.addEventListener("click",function(){
+      if(unlaunchable){ alert("Esta app no tiene ninguna pantalla iniciable detectable:\n\n"+app.pkg.slice("unlaunchable:".length)+"\n\nMandale este nombre a Claude."); return; }
+      assignApp(picIdx,app); closeAppPicker();
+    });
     grid.appendChild(el);
   });
   document.getElementById("appPicker").classList.add("open");
