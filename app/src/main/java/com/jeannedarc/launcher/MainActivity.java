@@ -2,6 +2,7 @@ package com.jeannedarc.launcher;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.ComponentName;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
@@ -142,14 +143,28 @@ public class MainActivity extends Activity {
     private class AndroidBridge {
 
         /**
-         * Launch an app by package name.
-         * If not installed, opens Play Store on that app's page.
+         * Launch an app. Accepts either a plain package name (resolved via
+         * getLaunchIntentForPackage, same as before) or a "pkg/className"
+         * launch key as returned by getInstalledApps() for apps that were
+         * only found via a non-standard entry point (see comment there) --
+         * those are started with an explicit component so we don't have to
+         * re-resolve them, since re-resolving is exactly what fails for
+         * apps built into the stereo firmware (e.g. its Radio app) that
+         * don't declare a normal CATEGORY_LAUNCHER activity.
+         * If nothing can be launched, opens Play Store on that app's page.
          */
         @JavascriptInterface
-        public void launchApp(String packageName) {
+        public void launchApp(String launchKey) {
+            int slash = launchKey.indexOf('/');
+            String packageName = slash >= 0 ? launchKey.substring(0, slash) : launchKey;
             try {
-                Intent intent = getPackageManager()
-                    .getLaunchIntentForPackage(packageName);
+                Intent intent;
+                if (slash >= 0) {
+                    intent = new Intent(Intent.ACTION_MAIN);
+                    intent.setClassName(packageName, launchKey.substring(slash + 1));
+                } else {
+                    intent = getPackageManager().getLaunchIntentForPackage(packageName);
+                }
                 if (intent != null) {
                     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                     startActivity(intent);
@@ -222,48 +237,100 @@ public class MainActivity extends Activity {
         }
 
         /**
-         * Returns JSON array of installed apps with name, packageName, and icon.
-         * Icons are returned as base64 PNG data URIs.
+         * Returns JSON array of installed apps with name, a launch key
+         * ("pkg" or "pkg/className"), and icon. Icons are base64 PNG data URIs.
+         *
+         * Ordinary apps (Play Store installs, etc.) declare a normal
+         * CATEGORY_LAUNCHER activity and are found by the first query below.
+         * Aftermarket car-stereo firmware often bundles apps (the built-in
+         * Radio, AV-IN, Bluetooth screen, etc.) that are real, resolvable
+         * activities but do NOT declare CATEGORY_LAUNCHER -- they're meant to
+         * be started only by the OEM's own home launcher through whatever
+         * internal mechanism it uses. A plain "list launchable apps" query
+         * skips them entirely, which is why the radio never showed up here.
+         *
+         * To catch those too, this also walks every installed application
+         * (getInstalledApplications) and, for anything not already found,
+         * tries progressively looser ways to find a startable activity in
+         * that package: getLaunchIntentForPackage, then the leanback (TV)
+         * launch intent, then a raw ACTION_MAIN query scoped to the package
+         * with no category filter at all. Whatever activity is found that
+         * way is encoded as an explicit "pkg/className" launch key, so
+         * launchApp() can start that exact component directly instead of
+         * re-resolving it (re-resolving is exactly what fails for these).
          */
         @JavascriptInterface
         public String getInstalledApps() {
             try {
                 PackageManager pm = getPackageManager();
+                JSONArray result = new JSONArray();
+                java.util.Set<String> seen = new java.util.HashSet<>();
+                String selfPkg = getPackageName();
+
                 Intent mainIntent = new Intent(Intent.ACTION_MAIN, null);
                 mainIntent.addCategory(Intent.CATEGORY_LAUNCHER);
+                for (ResolveInfo info : pm.queryIntentActivities(mainIntent, 0)) {
+                    String pkg = info.activityInfo.packageName;
+                    if (pkg.equals(selfPkg) || !seen.add(pkg)) continue;
+                    addApp(result, pkg, info.loadLabel(pm).toString(), info.loadIcon(pm));
+                }
 
-                List<ResolveInfo> apps = pm.queryIntentActivities(mainIntent, 0);
-                JSONArray result = new JSONArray();
+                // Second pass: apps with no CATEGORY_LAUNCHER activity, including
+                // system/firmware-bundled ones like the stereo's own Radio app.
+                for (android.content.pm.ApplicationInfo ai : pm.getInstalledApplications(0)) {
+                    String pkg = ai.packageName;
+                    if (pkg.equals(selfPkg) || seen.contains(pkg)) continue;
 
-                for (ResolveInfo info : apps) {
-                    try {
-                        String pkg = info.activityInfo.packageName;
-                        // Skip ourselves
-                        if (pkg.equals(getPackageName())) continue;
+                    ComponentName found = null;
+                    Intent li = pm.getLaunchIntentForPackage(pkg);
+                    if (li != null) found = li.getComponent();
+                    if (found == null) {
+                        Intent lb = pm.getLeanbackLaunchIntentForPackage(pkg);
+                        if (lb != null) found = lb.getComponent();
+                    }
+                    if (found == null) {
+                        Intent probe = new Intent(Intent.ACTION_MAIN).setPackage(pkg);
+                        List<ResolveInfo> matches = pm.queryIntentActivities(probe, 0);
+                        if (!matches.isEmpty()) {
+                            android.content.pm.ActivityInfo act = matches.get(0).activityInfo;
+                            found = new ComponentName(act.packageName, act.name);
+                        }
+                    }
+                    if (found == null) continue; // nothing startable in this package
+                    seen.add(pkg);
 
-                        String name = info.loadLabel(pm).toString();
+                    String name;
+                    try { name = pm.getApplicationLabel(ai).toString(); }
+                    catch (Exception e) { name = pkg; }
+                    android.graphics.drawable.Drawable icon;
+                    try { icon = pm.getApplicationIcon(ai); }
+                    catch (Exception e) { continue; }
 
-                        // Get icon as base64
-                        android.graphics.drawable.Drawable icon = info.loadIcon(pm);
-                        android.graphics.Bitmap bitmap = drawableToBitmap(icon);
-                        java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
-                        bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 90, baos);
-                        String iconB64 = "data:image/png;base64," +
-                            android.util.Base64.encodeToString(baos.toByteArray(),
-                                android.util.Base64.NO_WRAP);
-
-                        JSONObject obj = new JSONObject();
-                        obj.put("name", name);
-                        obj.put("pkg", pkg);
-                        obj.put("iconUrl", iconB64);
-                        result.put(obj);
-                    } catch (Exception ignored) {}
+                    addApp(result, pkg + "/" + found.getClassName(), name, icon);
                 }
 
                 return result.toString();
             } catch (Exception e) {
                 return "[]";
             }
+        }
+
+        private void addApp(JSONArray result, String launchKey,
+                             String name, android.graphics.drawable.Drawable icon) {
+            try {
+                android.graphics.Bitmap bitmap = drawableToBitmap(icon);
+                java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+                bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 90, baos);
+                String iconB64 = "data:image/png;base64," +
+                    android.util.Base64.encodeToString(baos.toByteArray(),
+                        android.util.Base64.NO_WRAP);
+
+                JSONObject obj = new JSONObject();
+                obj.put("name", name);
+                obj.put("pkg", launchKey);
+                obj.put("iconUrl", iconB64);
+                result.put(obj);
+            } catch (Exception ignored) {}
         }
 
         private android.graphics.Bitmap drawableToBitmap(android.graphics.drawable.Drawable drawable) {
