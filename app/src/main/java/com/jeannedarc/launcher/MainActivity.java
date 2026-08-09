@@ -155,6 +155,16 @@ public class MainActivity extends Activity {
          */
         @JavascriptInterface
         public void launchApp(String launchKey) {
+            if (launchKey.startsWith("unlaunchable:")) {
+                String rawPkg = launchKey.substring("unlaunchable:".length());
+                runOnUiThread(() -> new AlertDialog.Builder(MainActivity.this)
+                    .setTitle("No se pudo abrir")
+                    .setMessage("Esta app no declara ninguna pantalla iniciable:\n\n" + rawPkg
+                        + "\n\nMandale este nombre a Claude para revisar cómo abrirla.")
+                    .setPositiveButton("OK", null)
+                    .show());
+                return;
+            }
             int slash = launchKey.indexOf('/');
             String packageName = slash >= 0 ? launchKey.substring(0, slash) : launchKey;
             try {
@@ -296,12 +306,43 @@ public class MainActivity extends Activity {
                             found = new ComponentName(act.packageName, act.name);
                         }
                     }
-                    if (found == null) continue; // nothing startable in this package
-                    seen.add(pkg);
+                    if (found == null) {
+                        // Last resort: some OEM "internal" screens (a bundled
+                        // Radio app is a common example) declare an Activity
+                        // in the manifest with NO intent-filter at all -- they
+                        // rely on something else in the firmware to start them
+                        // via an explicit Intent, so no implicit-intent query
+                        // above can ever find them. Read the manifest directly
+                        // and just take the first declared activity, if any.
+                        try {
+                            android.content.pm.PackageInfo pi = pm.getPackageInfo(pkg,
+                                PackageManager.GET_ACTIVITIES);
+                            if (pi.activities != null && pi.activities.length > 0) {
+                                android.content.pm.ActivityInfo act = pi.activities[0];
+                                found = new ComponentName(act.packageName, act.name);
+                            }
+                        } catch (Exception ignored) {}
+                    }
 
                     String name;
                     try { name = pm.getApplicationLabel(ai).toString(); }
                     catch (Exception e) { name = pkg; }
+
+                    if (found == null) {
+                        // Truly nothing to launch (no activities declared at all --
+                        // likely a service/receiver-only package, not a real app
+                        // screen). Still list it, greyed out, tapping it reports the
+                        // raw package name so we can figure out the right way to
+                        // start it from outside if it does turn out to be relevant.
+                        seen.add(pkg);
+                        android.graphics.drawable.Drawable icon2;
+                        try { icon2 = pm.getApplicationIcon(ai); }
+                        catch (Exception e) { continue; }
+                        addApp(result, "unlaunchable:" + pkg, name, icon2);
+                        continue;
+                    }
+                    seen.add(pkg);
+
                     android.graphics.drawable.Drawable icon;
                     try { icon = pm.getApplicationIcon(ai); }
                     catch (Exception e) { continue; }
