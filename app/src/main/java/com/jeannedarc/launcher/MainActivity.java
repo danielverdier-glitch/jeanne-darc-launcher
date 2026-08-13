@@ -350,6 +350,65 @@ public class MainActivity extends Activity {
                     addApp(result, pkg + "/" + found.getClassName(), name, icon);
                 }
 
+                // Third pass: aggressive search for radio apps by keyword matching
+                // Look for packages containing "radio", "tuner", "fm" or starting with "nx"
+                for (android.content.pm.ApplicationInfo ai : pm.getInstalledApplications(0)) {
+                    String pkg = ai.packageName;
+                    if (pkg.equals(selfPkg) || seen.contains(pkg)) continue;
+
+                    String lowerPkg = pkg.toLowerCase();
+                    String name;
+                    try { name = pm.getApplicationLabel(ai).toString(); }
+                    catch (Exception e) { name = pkg; }
+                    String lowerName = name.toLowerCase();
+
+                    // Check if package name or label matches radio-related keywords
+                    boolean isRadio = lowerPkg.contains("radio") || lowerPkg.contains("tuner")
+                                   || lowerPkg.contains("fm") || lowerPkg.contains("fmradio")
+                                   || lowerName.contains("radio") || lowerName.contains("tuner");
+
+                    if (!isRadio) continue; // Skip if no match
+
+                    // Try to find a launchable activity
+                    ComponentName found = null;
+                    Intent li = pm.getLaunchIntentForPackage(pkg);
+                    if (li != null) found = li.getComponent();
+                    if (found == null) {
+                        Intent lb = pm.getLeanbackLaunchIntentForPackage(pkg);
+                        if (lb != null) found = lb.getComponent();
+                    }
+                    if (found == null) {
+                        Intent probe = new Intent(Intent.ACTION_MAIN).setPackage(pkg);
+                        List<ResolveInfo> matches = pm.queryIntentActivities(probe, 0);
+                        if (!matches.isEmpty()) {
+                            android.content.pm.ActivityInfo act = matches.get(0).activityInfo;
+                            found = new ComponentName(act.packageName, act.name);
+                        }
+                    }
+                    if (found == null) {
+                        try {
+                            android.content.pm.PackageInfo pi = pm.getPackageInfo(pkg,
+                                PackageManager.GET_ACTIVITIES);
+                            if (pi.activities != null && pi.activities.length > 0) {
+                                android.content.pm.ActivityInfo act = pi.activities[0];
+                                found = new ComponentName(act.packageName, act.name);
+                            }
+                        } catch (Exception ignored) {}
+                    }
+
+                    // If we found a radio app, add it (even if unlaunchable, mark as such)
+                    seen.add(pkg);
+                    android.graphics.drawable.Drawable icon;
+                    try { icon = pm.getApplicationIcon(ai); }
+                    catch (Exception e) { continue; }
+
+                    if (found != null) {
+                        addApp(result, pkg + "/" + found.getClassName(), name + " [RADIO]", icon);
+                    } else {
+                        addApp(result, "unlaunchable:" + pkg, name + " [RADIO-NO-LAUNCH]", icon);
+                    }
+                }
+
                 return result.toString();
             } catch (Exception e) {
                 return "[]";
