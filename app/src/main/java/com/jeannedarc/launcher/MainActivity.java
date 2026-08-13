@@ -350,62 +350,83 @@ public class MainActivity extends Activity {
                     addApp(result, pkg + "/" + found.getClassName(), name, icon);
                 }
 
-                // Third pass: aggressive search for radio apps by keyword matching
-                // Look for packages containing "radio", "tuner", "fm" or starting with "nx"
+                // Third pass: activity-level scan for the stereo's built-in Radio.
+                // On this head unit (MTK / NXOS, product Y6) the radio is NOT a
+                // package of its own -- Settings shows "Ajustes radio" as a section
+                // of the firmware's own settings, and the stock launcher opens the
+                // radio as an internal screen. So the second pass above, which only
+                // ever exposes ONE activity per package (the first launchable one),
+                // can never reach it. Here we walk every declared activity of every
+                // package and surface the ones whose class name looks radio-related,
+                // each as its own explicit "pkg/ClassName" entry.
                 for (android.content.pm.ApplicationInfo ai : pm.getInstalledApplications(0)) {
                     String pkg = ai.packageName;
-                    if (pkg.equals(selfPkg) || seen.contains(pkg)) continue;
+                    if (pkg.equals(selfPkg)) continue;
 
-                    String lowerPkg = pkg.toLowerCase();
-                    String name;
-                    try { name = pm.getApplicationLabel(ai).toString(); }
-                    catch (Exception e) { name = pkg; }
-                    String lowerName = name.toLowerCase();
+                    android.content.pm.ActivityInfo[] acts;
+                    try {
+                        android.content.pm.PackageInfo pi = pm.getPackageInfo(pkg,
+                            PackageManager.GET_ACTIVITIES);
+                        acts = pi.activities;
+                    } catch (Exception e) { continue; }
+                    if (acts == null) continue;
 
-                    // Check if package name or label matches radio-related keywords
-                    boolean isRadio = lowerPkg.contains("radio") || lowerPkg.contains("tuner")
-                                   || lowerPkg.contains("fm") || lowerPkg.contains("fmradio")
-                                   || lowerName.contains("radio") || lowerName.contains("tuner");
+                    for (android.content.pm.ActivityInfo act : acts) {
+                        String cls = act.name;
+                        String lower = cls.toLowerCase();
+                        // Match on the class name only. Matching the package would
+                        // re-list dozens of unrelated screens from any package that
+                        // happens to contain "fm" (e.g. "...confirm...").
+                        boolean looksRadio = lower.contains("radio")
+                                          || lower.contains("tuner")
+                                          || lower.contains("fmradio")
+                                          || lower.endsWith(".fm")
+                                          || lower.contains(".fm.");
+                        if (!looksRadio) continue;
 
-                    if (!isRadio) continue; // Skip if no match
+                        String key = pkg + "/" + cls;
+                        if (!seen.add(key)) continue;
 
-                    // Try to find a launchable activity
-                    ComponentName found = null;
-                    Intent li = pm.getLaunchIntentForPackage(pkg);
-                    if (li != null) found = li.getComponent();
-                    if (found == null) {
-                        Intent lb = pm.getLeanbackLaunchIntentForPackage(pkg);
-                        if (lb != null) found = lb.getComponent();
+                        android.graphics.drawable.Drawable icon;
+                        try { icon = pm.getApplicationIcon(ai); }
+                        catch (Exception e) { continue; }
+
+                        // Show the short class name so several candidates from the
+                        // same package stay distinguishable in the picker.
+                        String shortCls = cls.substring(cls.lastIndexOf('.') + 1);
+                        addApp(result, key, "\u25B6 " + shortCls, icon);
                     }
-                    if (found == null) {
-                        Intent probe = new Intent(Intent.ACTION_MAIN).setPackage(pkg);
-                        List<ResolveInfo> matches = pm.queryIntentActivities(probe, 0);
-                        if (!matches.isEmpty()) {
-                            android.content.pm.ActivityInfo act = matches.get(0).activityInfo;
-                            found = new ComponentName(act.packageName, act.name);
-                        }
-                    }
-                    if (found == null) {
-                        try {
-                            android.content.pm.PackageInfo pi = pm.getPackageInfo(pkg,
-                                PackageManager.GET_ACTIVITIES);
-                            if (pi.activities != null && pi.activities.length > 0) {
-                                android.content.pm.ActivityInfo act = pi.activities[0];
-                                found = new ComponentName(act.packageName, act.name);
-                            }
-                        } catch (Exception ignored) {}
-                    }
+                }
 
-                    // If we found a radio app, add it (even if unlaunchable, mark as such)
-                    seen.add(pkg);
-                    android.graphics.drawable.Drawable icon;
-                    try { icon = pm.getApplicationIcon(ai); }
-                    catch (Exception e) { continue; }
+                // Fourth pass: every activity of the stock home launcher(s).
+                // The firmware launcher is what shows the "Radio" card, so whatever
+                // component that card starts is either declared there or named in a
+                // recognisable way alongside it. Bounded to home packages so this
+                // stays a short, readable list rather than every screen on the unit.
+                Intent homeIntent = new Intent(Intent.ACTION_MAIN);
+                homeIntent.addCategory(Intent.CATEGORY_HOME);
+                for (ResolveInfo home : pm.queryIntentActivities(homeIntent, 0)) {
+                    String pkg = home.activityInfo.packageName;
+                    if (pkg.equals(selfPkg)) continue;
 
-                    if (found != null) {
-                        addApp(result, pkg + "/" + found.getClassName(), name + " [RADIO]", icon);
-                    } else {
-                        addApp(result, "unlaunchable:" + pkg, name + " [RADIO-NO-LAUNCH]", icon);
+                    android.content.pm.ActivityInfo[] acts;
+                    try {
+                        android.content.pm.PackageInfo pi = pm.getPackageInfo(pkg,
+                            PackageManager.GET_ACTIVITIES);
+                        acts = pi.activities;
+                    } catch (Exception e) { continue; }
+                    if (acts == null) continue;
+
+                    for (android.content.pm.ActivityInfo act : acts) {
+                        String key = pkg + "/" + act.name;
+                        if (!seen.add(key)) continue;
+
+                        android.graphics.drawable.Drawable icon;
+                        try { icon = act.loadIcon(pm); }
+                        catch (Exception e) { continue; }
+
+                        String shortCls = act.name.substring(act.name.lastIndexOf('.') + 1);
+                        addApp(result, key, "\u2699 " + shortCls, icon);
                     }
                 }
 
