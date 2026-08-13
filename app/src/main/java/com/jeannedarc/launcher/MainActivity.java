@@ -377,11 +377,33 @@ public class MainActivity extends Activity {
                         // Match on the class name only. Matching the package would
                         // re-list dozens of unrelated screens from any package that
                         // happens to contain "fm" (e.g. "...confirm...").
+                        // This is a Chinese head unit, so cover the Chinese terms
+                        // too: \u6536\u97f3\u673a (radio set), \u7535\u53f0 (station),
+                        // \u8c03\u9891 (FM/tuning), \u5e7f\u64ad (broadcast). Class names are
+                        // usually ASCII, but the firmware's own screens are the
+                        // exact case where that assumption tends to break.
                         boolean looksRadio = lower.contains("radio")
                                           || lower.contains("tuner")
                                           || lower.contains("fmradio")
                                           || lower.endsWith(".fm")
-                                          || lower.contains(".fm.");
+                                          || lower.contains(".fm.")
+                                          || cls.contains("\u6536\u97f3\u673a")
+                                          || cls.contains("\u7535\u53f0")
+                                          || cls.contains("\u8c03\u9891")
+                                          || cls.contains("\u5e7f\u64ad");
+                        if (!looksRadio) {
+                            // Also check the activity's own visible label -- an OEM
+                            // screen class named e.g. ".ActivityMain" can still carry
+                            // a "\u6536\u97f3\u673a" label, and that label is what the stock
+                            // launcher shows on its Radio card.
+                            String lbl;
+                            try { lbl = act.loadLabel(pm).toString(); }
+                            catch (Exception e) { continue; }
+                            String ll = lbl.toLowerCase();
+                            looksRadio = ll.contains("radio") || ll.contains("tuner")
+                                      || lbl.contains("\u6536\u97f3\u673a") || lbl.contains("\u7535\u53f0")
+                                      || lbl.contains("\u8c03\u9891") || lbl.contains("\u5e7f\u64ad");
+                        }
                         if (!looksRadio) continue;
 
                         String key = pkg + "/" + cls;
