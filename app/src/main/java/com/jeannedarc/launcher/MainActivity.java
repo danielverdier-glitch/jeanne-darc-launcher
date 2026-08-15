@@ -26,7 +26,11 @@ import java.util.List;
 public class MainActivity extends Activity {
 
     private WebView webView;
+    /** Ranked radio candidates for the "buscar la radio" dialog, best first. */
+    private java.util.List<String[]> radioCandidates = null;
     private static final String PREFS_NAME = "JeanneDArcPrefs";
+    /** Launch key of the radio once the user confirms one, so it can be pinned. */
+    private static final String KEY_RADIO = "confirmedRadio";
     private static final int REQUEST_PERMISSIONS = 1;
     private static final String[] REQUIRED_PERMISSIONS = {
         android.Manifest.permission.ACCESS_FINE_LOCATION,
@@ -277,6 +281,20 @@ public class MainActivity extends Activity {
                 java.util.Set<String> seen = new java.util.HashSet<>();
                 String selfPkg = getPackageName();
 
+                // Pin the radio first once findRadio() has confirmed one, so it
+                // is not buried among the hundreds of firmware screens that made
+                // it impossible to pick out by hand in the first place.
+                String radioKey = loadPrefs(KEY_RADIO);
+                if (radioKey != null && !radioKey.isEmpty() && seen.add(radioKey)) {
+                    try {
+                        int slash = radioKey.indexOf('/');
+                        ComponentName cn = new ComponentName(
+                            radioKey.substring(0, slash), radioKey.substring(slash + 1));
+                        addApp(result, radioKey, "\ud83d\udcfb Radio",
+                               pm.getActivityInfo(cn, 0).loadIcon(pm));
+                    } catch (Exception ignored) {}
+                }
+
                 Intent mainIntent = new Intent(Intent.ACTION_MAIN, null);
                 mainIntent.addCategory(Intent.CATEGORY_LAUNCHER);
                 for (ResolveInfo info : pm.queryIntentActivities(mainIntent, 0)) {
@@ -420,42 +438,150 @@ public class MainActivity extends Activity {
                     }
                 }
 
-                // Fourth pass: every activity of the stock home launcher(s).
-                // The firmware launcher is what shows the "Radio" card, so whatever
-                // component that card starts is either declared there or named in a
-                // recognisable way alongside it. Bounded to home packages so this
-                // stays a short, readable list rather than every screen on the unit.
-                Intent homeIntent = new Intent(Intent.ACTION_MAIN);
-                homeIntent.addCategory(Intent.CATEGORY_HOME);
-                for (ResolveInfo home : pm.queryIntentActivities(homeIntent, 0)) {
-                    String pkg = home.activityInfo.packageName;
-                    if (pkg.equals(selfPkg)) continue;
-
-                    android.content.pm.ActivityInfo[] acts;
-                    try {
-                        android.content.pm.PackageInfo pi = pm.getPackageInfo(pkg,
-                            PackageManager.GET_ACTIVITIES);
-                        acts = pi.activities;
-                    } catch (Exception e) { continue; }
-                    if (acts == null) continue;
-
-                    for (android.content.pm.ActivityInfo act : acts) {
-                        String key = pkg + "/" + act.name;
-                        if (!seen.add(key)) continue;
-
-                        android.graphics.drawable.Drawable icon;
-                        try { icon = act.loadIcon(pm); }
-                        catch (Exception e) { continue; }
-
-                        String shortCls = act.name.substring(act.name.lastIndexOf('.') + 1);
-                        addApp(result, key, "\u2699 " + shortCls, icon);
-                    }
-                }
-
                 return result.toString();
             } catch (Exception e) {
                 return "[]";
             }
+        }
+
+        /**
+         * Rank every activity on the device by how likely it is to be the
+         * stereo's built-in Radio screen, then show the best one in a dialog
+         * the user can accept or skip.
+         *
+         * Listing the candidates in the picker turned out to be unusable --
+         * a firmware like this declares hundreds of internal screens, and the
+         * radio is not distinguishable by eye among them. So the ranking runs
+         * here and the user only ever judges one candidate at a time, in the
+         * only way that actually settles it: by opening it and seeing whether
+         * the radio comes up.
+         */
+        @JavascriptInterface
+        public void findRadio() {
+            PackageManager pm = getPackageManager();
+            java.util.List<String[]> found = new java.util.ArrayList<>();
+
+            java.util.Set<String> homePkgs = new java.util.HashSet<>();
+            Intent homeIntent = new Intent(Intent.ACTION_MAIN);
+            homeIntent.addCategory(Intent.CATEGORY_HOME);
+            for (ResolveInfo ri : pm.queryIntentActivities(homeIntent, 0)) {
+                homePkgs.add(ri.activityInfo.packageName);
+            }
+
+            String selfPkg = getPackageName();
+            for (ApplicationInfo ai : pm.getInstalledApplications(0)) {
+                String pkg = ai.packageName;
+                if (pkg.equals(selfPkg)) continue;
+
+                android.content.pm.ActivityInfo[] acts;
+                try {
+                    acts = pm.getPackageInfo(pkg, PackageManager.GET_ACTIVITIES).activities;
+                } catch (Exception e) { continue; }
+                if (acts == null) continue;
+
+                for (android.content.pm.ActivityInfo act : acts) {
+                    String label;
+                    try { label = act.loadLabel(pm).toString(); }
+                    catch (Exception e) { label = act.name; }
+
+                    int score = scoreRadio(pkg, act.name, label,
+                                           act.exported, homePkgs.contains(pkg));
+                    if (score <= 0) continue;
+                    found.add(new String[]{
+                        String.valueOf(score), pkg + "/" + act.name, label });
+                }
+            }
+
+            java.util.Collections.sort(found, (a, b) ->
+                Integer.parseInt(b[0]) - Integer.parseInt(a[0]));
+            radioCandidates = found;
+
+            runOnUiThread(() -> showRadioCandidate(0));
+        }
+
+        /**
+         * How much a given activity looks like the radio. Negative or zero
+         * means "not a candidate".
+         */
+        private int scoreRadio(String pkg, String cls, String label,
+                               boolean exported, boolean isHome) {
+            String lc = cls.toLowerCase(), lp = pkg.toLowerCase(), ll = label.toLowerCase();
+            int score = 0;
+
+            // Strong signals, in the class name and in the visible label. The
+            // Chinese terms matter as much as the English ones here: this is
+            // Chinese-market firmware and several of its screens label in
+            // Chinese even when the class name is ASCII.
+            String[] strong = {"radio", "tuner", "fmradio",
+                               "\u6536\u97f3\u673a", "\u7535\u53f0", "\u8c03\u9891", "\u5e7f\u64ad"};
+            for (String k : strong) {
+                if (lc.contains(k)) score += 50;
+                if (ll.contains(k)) score += 40;
+            }
+            // "fm" only as a delimited token -- as a bare substring it matches
+            // half the framework ("confirm", "fmt", ...).
+            if (lc.matches(".*[.$_]fm([.$_].*|)") || ll.matches("(.*\\W|)fm(\\W.*|)")) score += 25;
+
+            if (score == 0) return 0; // nothing radio-ish at all
+
+            // An activity we cannot start is useless to us no matter how well
+            // it matches, so this is a hard disqualifier rather than a penalty.
+            if (!exported) return 0;
+
+            // OEM-ish packages are where the built-in radio lives.
+            String[] oem = {"com.nx", ".car", "auto", "mtk", "mediatek",
+                            "hct", "syu", "hzbhd", "wits", "zhonghong", "autochips"};
+            for (String k : oem) { if (lp.contains(k)) { score += 15; break; } }
+            if (isHome) score += 20; // the stock launcher draws the Radio card
+
+            // These are the radio's *settings* or a factory screen, not the
+            // radio itself -- worth keeping in the list, but well below.
+            String[] weak = {"setting", "config", "\u8bbe\u7f6e",
+                             "test", "factory", "engineer", "debug"};
+            for (String k : weak) {
+                if (lc.contains(k) || ll.contains(k)) { score -= 35; break; }
+            }
+            return score;
+        }
+
+        /** Show candidate i, with the option to open it or skip to the next. */
+        private void showRadioCandidate(int i) {
+            if (radioCandidates == null || radioCandidates.isEmpty()) {
+                new AlertDialog.Builder(MainActivity.this)
+                    .setTitle("No encontré la radio")
+                    .setMessage("Ninguna pantalla del sistema parece ser la radio.\n\n"
+                        + "Contale esto a Claude para probar otro camino.")
+                    .setPositiveButton("OK", null)
+                    .show();
+                return;
+            }
+            if (i >= radioCandidates.size()) {
+                new AlertDialog.Builder(MainActivity.this)
+                    .setTitle("Se acabaron los candidatos")
+                    .setMessage("Probé las " + radioCandidates.size()
+                        + " pantallas que parecían la radio y ninguna era.\n\n"
+                        + "Contale esto a Claude para probar otro camino.")
+                    .setPositiveButton("OK", null)
+                    .show();
+                return;
+            }
+
+            String[] c = radioCandidates.get(i);
+            final String key = c[1], label = c[2];
+
+            new AlertDialog.Builder(MainActivity.this)
+                .setTitle("\u00bfEsta es la radio?")
+                .setMessage("Candidato " + (i + 1) + " de " + radioCandidates.size()
+                    + "\n\n" + label + "\n" + key
+                    + "\n\nSi al abrirla aparece la radio, qued\u00f3 guardada y la vas a "
+                    + "encontrar como \u00ab\ud83d\udcfb Radio\u00bb arriba de todo en la lista de apps.")
+                .setPositiveButton("Abrir esta", (d, w) -> {
+                    savePrefs(KEY_RADIO, key);
+                    launchApp(key);
+                })
+                .setNeutralButton("Probar la siguiente", (d, w) -> showRadioCandidate(i + 1))
+                .setNegativeButton("Cancelar", null)
+                .show();
         }
 
         private void addApp(JSONArray result, String launchKey,

@@ -76,6 +76,8 @@ html,body{width:100vw;height:100vh;overflow:hidden;background:#0a1622;font-famil
 .overlay.open{display:flex}
 .picker-box{background:rgba(10,22,34,0.98);border:1px solid rgba(255,255,255,0.15);border-radius:14px;padding:20px;max-width:620px;width:92%;max-height:480px;overflow-y:auto}
 .picker-title{color:#7dd4f0;font-size:11px;letter-spacing:3px;text-transform:uppercase;margin-bottom:16px;text-align:center}
+.find-radio{background:rgba(125,212,240,0.12);border:1px solid rgba(125,212,240,0.35);color:#7dd4f0;border-radius:8px;padding:11px;text-align:center;font-size:12px;cursor:pointer;margin-bottom:14px}
+.find-radio:active{background:rgba(125,212,240,0.25)}
 .app-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
 .app-item{display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 4px;border-radius:8px;cursor:pointer;transition:background 0.1s;color:rgba(255,255,255,0.8);font-size:10px;text-align:center}
 .app-item:active{background:rgba(255,255,255,0.1)}
@@ -147,6 +149,7 @@ html,body{width:100vw;height:100vh;overflow:hidden;background:#0a1622;font-famil
 <div class="overlay" id="appPicker">
   <div class="picker-box">
     <div class="picker-title">Seleccionar aplicaci&#243;n</div>
+    <div class="find-radio" id="findRadio">&#x1F4FB; Buscar la radio del estéreo</div>
     <div class="app-grid" id="appGrid"></div>
     <div class="picker-close" id="appClose">&#x2715; Cancelar</div>
   </div>
@@ -329,6 +332,13 @@ function openAppPicker(i){
 }
 function closeAppPicker(){ document.getElementById("appPicker").classList.remove("open"); }
 document.getElementById("appClose").addEventListener("click",closeAppPicker);
+// The radio is a firmware-internal screen with no launcher entry, so it can
+// only be found by ranking every activity on the device -- see findRadio() on
+// the Android side. Confirming one pins it to the top of this list.
+document.getElementById("findRadio").addEventListener("click",function(){
+  if(Bridge&&Bridge.findRadio) Bridge.findRadio();
+  else alert("Esta función necesita la app instalada en el estéreo.");
+});
 
 function assignApp(i,app){
   btns[i]={id:i,lbl:app.name,pkg:app.pkg,empty:false,
