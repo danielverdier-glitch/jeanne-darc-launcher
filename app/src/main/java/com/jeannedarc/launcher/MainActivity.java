@@ -494,6 +494,10 @@ public class MainActivity extends Activity {
 
             java.util.Collections.sort(found, (a, b) ->
                 Integer.parseInt(b[0]) - Integer.parseInt(a[0]));
+            // The tail of the ranking is noise the user would tap through for
+            // nothing; if the radio is not in the top of it, the ranking is
+            // wrong and needs fixing rather than more taps.
+            if (found.size() > 40) found = found.subList(0, 40);
             radioCandidates = found;
 
             runOnUiThread(() -> showRadioCandidate(0));
@@ -506,42 +510,67 @@ public class MainActivity extends Activity {
         private int scoreRadio(String pkg, String cls, String label,
                                boolean exported, boolean isHome) {
             String lc = cls.toLowerCase(), lp = pkg.toLowerCase(), ll = label.toLowerCase();
-            int score = 0;
 
-            // Strong signals, in the class name and in the visible label. The
-            // Chinese terms matter as much as the English ones here: this is
-            // Chinese-market firmware and several of its screens label in
-            // Chinese even when the class name is ASCII.
+            // Google and AOSP packages hold nothing of ours, and they are an
+            // active source of false positives: com.android.settings declares
+            // RadioInfo, where "radio" means the cellular modem.
+            if (lp.startsWith("com.google.") || lp.startsWith("com.android.")
+                || lp.equals("android")) return 0;
+
+            int score = 0;
             String[] strong = {"radio", "tuner", "fmradio",
                                "\u6536\u97f3\u673a", "\u7535\u53f0", "\u8c03\u9891", "\u5e7f\u64ad"};
             for (String k : strong) {
-                if (lc.contains(k)) score += 50;
-                if (ll.contains(k)) score += 40;
+                if (lc.contains(k)) score += 60;
+                if (ll.contains(k)) score += 50;
             }
-            // "fm" only as a delimited token -- as a bare substring it matches
-            // half the framework ("confirm", "fmt", ...).
-            if (lc.matches(".*[.$_]fm([.$_].*|)") || ll.matches("(.*\\W|)fm(\\W.*|)")) score += 25;
+            if (lc.matches(".*[.$_]fm([.$_].*|)") || ll.matches("(.*\\W|)fm(\\W.*|)")) score += 30;
 
-            if (score == 0) return 0; // nothing radio-ish at all
+            // The radio turned out to carry no radio word at all in either its
+            // class name or its label, so keyword matching alone cannot find
+            // it. Score the media-ish screens of the firmware too and let the
+            // user walk the ranking -- on a unit like this the radio lives in
+            // whatever app owns audio sources (media centre, AV, sound).
+            String[] mediaish = {"media", "music", "audio", "player", "sound",
+                                 "\u97f3\u4e50", "\u5a92\u4f53", "av"};
+            for (String k : mediaish) { if (lc.contains(k) || ll.contains(k)) { score += 12; break; } }
 
-            // An activity we cannot start is useless to us no matter how well
-            // it matches, so this is a hard disqualifier rather than a penalty.
-            if (!exported) return 0;
-
-            // OEM-ish packages are where the built-in radio lives.
             String[] oem = {"com.nx", ".car", "auto", "mtk", "mediatek",
                             "hct", "syu", "hzbhd", "wits", "zhonghong", "autochips"};
             for (String k : oem) { if (lp.contains(k)) { score += 15; break; } }
-            if (isHome) score += 20; // the stock launcher draws the Radio card
+            if (isHome) score += 30; // the stock launcher draws the Radio card
 
-            // These are the radio's *settings* or a factory screen, not the
-            // radio itself -- worth keeping in the list, but well below.
+            // The CAN-bus screens address the *vehicle's own* head unit (the
+            // first candidate found this way was "\u539f\u8f66FM", the original car's
+            // FM, a Nissan bus test screen). There is no original car here.
+            if (lp.contains("canbus") || lc.contains("carinfo")) score -= 60;
+
             String[] weak = {"setting", "config", "\u8bbe\u7f6e",
                              "test", "factory", "engineer", "debug"};
             for (String k : weak) {
-                if (lc.contains(k) || ll.contains(k)) { score -= 35; break; }
+                if (lc.contains(k) || ll.contains(k)) { score -= 40; break; }
             }
-            return score;
+
+            // Not a hard disqualifier any more: whether a component can really
+            // be started is settled by starting it, and this pass now has to
+            // reach screens that carry no obvious marking at all.
+            score += exported ? 10 : -5;
+
+            return score >= 20 ? score : 0;
+        }
+
+        /** Start "pkg/Class" explicitly. False if the system refused it. */
+        private boolean tryLaunchComponent(String key) {
+            try {
+                int slash = key.indexOf('/');
+                Intent intent = new Intent(Intent.ACTION_MAIN);
+                intent.setClassName(key.substring(0, slash), key.substring(slash + 1));
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(intent);
+                return true;
+            } catch (Exception e) {
+                return false;
+            }
         }
 
         /** Show candidate i, with the option to open it or skip to the next. */
@@ -576,8 +605,17 @@ public class MainActivity extends Activity {
                     + "\n\nSi al abrirla aparece la radio, qued\u00f3 guardada y la vas a "
                     + "encontrar como \u00ab\ud83d\udcfb Radio\u00bb arriba de todo en la lista de apps.")
                 .setPositiveButton("Abrir esta", (d, w) -> {
-                    savePrefs(KEY_RADIO, key);
-                    launchApp(key);
+                    // A component that refuses to start tells us nothing and
+                    // costs the user a tap, so move straight on to the next one
+                    // instead of leaving them on a dialog that did nothing.
+                    if (tryLaunchComponent(key)) {
+                        savePrefs(KEY_RADIO, key);
+                    } else {
+                        android.widget.Toast.makeText(MainActivity.this,
+                            "Esa no abre, paso a la siguiente",
+                            android.widget.Toast.LENGTH_SHORT).show();
+                        showRadioCandidate(i + 1);
+                    }
                 })
                 .setNeutralButton("Probar la siguiente", (d, w) -> showRadioCandidate(i + 1))
                 .setNegativeButton("Cancelar", null)
