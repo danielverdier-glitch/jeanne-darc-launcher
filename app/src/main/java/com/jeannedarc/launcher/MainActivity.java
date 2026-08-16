@@ -559,6 +559,192 @@ public class MainActivity extends Activity {
             return score >= 20 ? score : 0;
         }
 
+        /**
+         * Write a full report of what this firmware actually contains to the
+         * device's Downloads folder, for offline analysis.
+         *
+         * Every heuristic tried so far guessed at the radio from the outside
+         * and guessed wrong, because nothing about it is marked in a way an
+         * outsider recognises. This dumps the raw material instead -- every
+         * component of every non-Google package, the settings tables, and the
+         * shared-user ids that explain what the stock launcher is allowed to
+         * start that we are not -- so the answer can be read off the firmware
+         * rather than inferred from its naming.
+         */
+        @JavascriptInterface
+        public void dumpSystemInfo() {
+            new Thread(() -> {
+                String report;
+                try { report = buildReport(); }
+                catch (Exception e) { report = "ERROR generando el informe: " + e; }
+                final String body = report;
+
+                String where;
+                try { where = writeReport(body); }
+                catch (Exception e) { where = null; }
+
+                final String path = where;
+                runOnUiThread(() -> new AlertDialog.Builder(MainActivity.this)
+                    .setTitle(path != null ? "Informe generado" : "No se pudo guardar")
+                    .setMessage(path != null
+                        ? "Generé el informe en:\n\n" + path
+                          + "\n\nBuscalo con la app Archivos (carpeta Descargas) y "
+                          + "mandáselo a Claude."
+                        : "No pude escribir el archivo. Probá darle permiso de "
+                          + "almacenamiento a la app en Configuración.")
+                    .setPositiveButton("OK", null)
+                    .show());
+            }).start();
+        }
+
+        /** Save the report, returning the human-readable path it landed in. */
+        private String writeReport(String body) throws Exception {
+            String name = "jeanne-darc-informe.txt";
+            byte[] data = body.getBytes("UTF-8");
+
+            if (android.os.Build.VERSION.SDK_INT >= 29) {
+                android.content.ContentValues cv = new android.content.ContentValues();
+                cv.put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, name);
+                cv.put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "text/plain");
+                cv.put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH,
+                       android.os.Environment.DIRECTORY_DOWNLOADS);
+                Uri uri = getContentResolver().insert(
+                    android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv);
+                if (uri == null) throw new Exception("MediaStore rechazó el archivo");
+                java.io.OutputStream os = getContentResolver().openOutputStream(uri);
+                os.write(data);
+                os.close();
+                return "Descargas/" + name;
+            }
+
+            java.io.File dir = android.os.Environment.getExternalStoragePublicDirectory(
+                android.os.Environment.DIRECTORY_DOWNLOADS);
+            dir.mkdirs();
+            java.io.File out = new java.io.File(dir, name);
+            java.io.FileOutputStream fos = new java.io.FileOutputStream(out);
+            fos.write(data);
+            fos.close();
+            return out.getAbsolutePath();
+        }
+
+        private String buildReport() {
+            PackageManager pm = getPackageManager();
+            StringBuilder b = new StringBuilder();
+
+            b.append("== JEANNE D'ARC - informe del sistema ==\n");
+            b.append("android.sdk=").append(android.os.Build.VERSION.SDK_INT)
+             .append(" release=").append(android.os.Build.VERSION.RELEASE).append('\n');
+            String[][] props = {
+                {"manufacturer", android.os.Build.MANUFACTURER}, {"brand", android.os.Build.BRAND},
+                {"model", android.os.Build.MODEL}, {"device", android.os.Build.DEVICE},
+                {"product", android.os.Build.PRODUCT}, {"board", android.os.Build.BOARD},
+                {"hardware", android.os.Build.HARDWARE}, {"display", android.os.Build.DISPLAY},
+                {"fingerprint", android.os.Build.FINGERPRINT},
+            };
+            for (String[] kv : props) b.append(kv[0]).append('=').append(kv[1]).append('\n');
+
+            // Which launcher draws the Radio card -- its package gets full
+            // detail below even if it would otherwise be filtered out.
+            java.util.Set<String> homePkgs = new java.util.HashSet<>();
+            Intent hi = new Intent(Intent.ACTION_MAIN);
+            hi.addCategory(Intent.CATEGORY_HOME);
+            for (ResolveInfo ri : pm.queryIntentActivities(hi, 0)) {
+                homePkgs.add(ri.activityInfo.packageName);
+            }
+            b.append("\n== LAUNCHERS (CATEGORY_HOME) ==\n");
+            for (String h : homePkgs) b.append(h).append('\n');
+
+            // The settings tables are where a firmware records things like the
+            // current band or the last tuned frequency, which names the owning
+            // component far more reliably than any class name does.
+            dumpSettings(b, "System", android.provider.Settings.System.CONTENT_URI);
+            dumpSettings(b, "Secure", android.provider.Settings.Secure.CONTENT_URI);
+            dumpSettings(b, "Global", android.provider.Settings.Global.CONTENT_URI);
+
+            b.append("\n== PAQUETES ==\n");
+            b.append("(Google/AOSP se listan sin detalle; el resto va completo)\n");
+            java.util.List<ApplicationInfo> apps = pm.getInstalledApplications(0);
+            java.util.Collections.sort(apps, (x, y) -> x.packageName.compareTo(y.packageName));
+
+            for (ApplicationInfo ai : apps) {
+                String pkg = ai.packageName;
+                String label;
+                try { label = pm.getApplicationLabel(ai).toString(); }
+                catch (Exception e) { label = "?"; }
+                boolean sys = (ai.flags & ApplicationInfo.FLAG_SYSTEM) != 0;
+
+                boolean terse = (pkg.startsWith("com.google.") || pkg.startsWith("com.android.")
+                                 || pkg.equals("android")) && !homePkgs.contains(pkg);
+
+                b.append("\n--- ").append(pkg).append(" | \"").append(label).append('"')
+                 .append(sys ? " [system]" : "").append(ai.enabled ? "" : " [disabled]")
+                 .append(homePkgs.contains(pkg) ? " [HOME]" : "").append('\n');
+
+                android.content.pm.PackageInfo pi;
+                try {
+                    pi = pm.getPackageInfo(pkg, PackageManager.GET_ACTIVITIES
+                        | PackageManager.GET_SERVICES | PackageManager.GET_RECEIVERS
+                        | PackageManager.GET_PROVIDERS);
+                } catch (Exception e) { b.append("  (no legible)\n"); continue; }
+
+                if (pi.sharedUserId != null) {
+                    // Components of a shared uid can start each other's private
+                    // screens; that is the likeliest reason the stock launcher
+                    // reaches something we cannot.
+                    b.append("  sharedUserId=").append(pi.sharedUserId).append('\n');
+                }
+                if (terse) {
+                    b.append("  (resumen) activities=")
+                     .append(pi.activities == null ? 0 : pi.activities.length)
+                     .append(" services=").append(pi.services == null ? 0 : pi.services.length)
+                     .append('\n');
+                    continue;
+                }
+
+                if (pi.activities != null) for (android.content.pm.ActivityInfo a : pi.activities) {
+                    String al;
+                    try { al = a.loadLabel(pm).toString(); } catch (Exception e) { al = ""; }
+                    b.append("  ACT ").append(a.name)
+                     .append(a.exported ? " exported" : " private")
+                     .append(a.enabled ? "" : " disabled")
+                     .append(a.permission != null ? " perm=" + a.permission : "")
+                     .append(al.isEmpty() ? "" : " \"" + al + "\"").append('\n');
+                }
+                if (pi.services != null) for (android.content.pm.ServiceInfo sv : pi.services) {
+                    b.append("  SVC ").append(sv.name)
+                     .append(sv.exported ? " exported" : " private")
+                     .append(sv.permission != null ? " perm=" + sv.permission : "").append('\n');
+                }
+                if (pi.receivers != null) for (android.content.pm.ActivityInfo r : pi.receivers) {
+                    b.append("  RCV ").append(r.name)
+                     .append(r.exported ? " exported" : " private").append('\n');
+                }
+                if (pi.providers != null) for (android.content.pm.ProviderInfo pr : pi.providers) {
+                    b.append("  PRV ").append(pr.name)
+                     .append(" auth=").append(pr.authority)
+                     .append(pr.exported ? " exported" : " private").append('\n');
+                }
+            }
+            return b.toString();
+        }
+
+        private void dumpSettings(StringBuilder b, String title, Uri uri) {
+            b.append("\n== SETTINGS.").append(title.toUpperCase()).append(" ==\n");
+            android.database.Cursor c = null;
+            try {
+                c = getContentResolver().query(uri, new String[]{"name", "value"},
+                                               null, null, "name");
+                if (c == null) { b.append("(no legible)\n"); return; }
+                while (c.moveToNext()) {
+                    b.append(c.getString(0)).append('=').append(c.getString(1)).append('\n');
+                }
+            } catch (Exception e) {
+                b.append("(no legible: ").append(e).append(")\n");
+            } finally {
+                if (c != null) c.close();
+            }
+        }
+
         /** Start "pkg/Class" explicitly. False if the system refused it. */
         private boolean tryLaunchComponent(String key) {
             try {

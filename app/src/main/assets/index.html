@@ -150,6 +150,7 @@ html,body{width:100vw;height:100vh;overflow:hidden;background:#0a1622;font-famil
   <div class="picker-box">
     <div class="picker-title">Seleccionar aplicaci&#243;n</div>
     <div class="find-radio" id="findRadio">&#x1F4FB; Buscar la radio del estéreo</div>
+    <div class="find-radio" id="dumpInfo">&#x1F9FE; Generar informe del sistema</div>
     <div class="app-grid" id="appGrid"></div>
     <div class="picker-close" id="appClose">&#x2715; Cancelar</div>
   </div>
@@ -337,6 +338,12 @@ document.getElementById("appClose").addEventListener("click",closeAppPicker);
 // the Android side. Confirming one pins it to the top of this list.
 document.getElementById("findRadio").addEventListener("click",function(){
   if(Bridge&&Bridge.findRadio) Bridge.findRadio();
+  else alert("Esta función necesita la app instalada en el estéreo.");
+});
+// Dumps what the firmware actually contains to Downloads, so the radio can be
+// read off the report instead of guessed at from the outside.
+document.getElementById("dumpInfo").addEventListener("click",function(){
+  if(Bridge&&Bridge.dumpSystemInfo) Bridge.dumpSystemInfo();
   else alert("Esta función necesita la app instalada en el estéreo.");
 });
 
