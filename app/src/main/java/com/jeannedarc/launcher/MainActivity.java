@@ -34,7 +34,10 @@ public class MainActivity extends Activity {
     private static final int REQUEST_PERMISSIONS = 1;
     private static final String[] REQUIRED_PERMISSIONS = {
         android.Manifest.permission.ACCESS_FINE_LOCATION,
-        android.Manifest.permission.ACCESS_COARSE_LOCATION
+        android.Manifest.permission.ACCESS_COARSE_LOCATION,
+        // Ungranted on API <= 29 is why the first report failed to save; above
+        // that the system ignores it and MediaStore covers the write instead.
+        android.Manifest.permission.WRITE_EXTERNAL_STORAGE
     };
 
     @Override
@@ -597,34 +600,81 @@ public class MainActivity extends Activity {
             }).start();
         }
 
-        /** Save the report, returning the human-readable path it landed in. */
+        /**
+         * Save the report, returning the human-readable path it landed in.
+         *
+         * Tries several destinations because which ones are writable varies by
+         * Android version and by how the OEM configured storage, and the first
+         * attempt at this failed on the unit with nothing to explain why. The
+         * app-private external directory is last and effectively cannot fail:
+         * it needs no permission on any version.
+         */
         private String writeReport(String body) throws Exception {
             String name = "jeanne-darc-informe.txt";
             byte[] data = body.getBytes("UTF-8");
+            StringBuilder problems = new StringBuilder();
 
             if (android.os.Build.VERSION.SDK_INT >= 29) {
-                android.content.ContentValues cv = new android.content.ContentValues();
-                cv.put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, name);
-                cv.put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "text/plain");
-                cv.put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH,
-                       android.os.Environment.DIRECTORY_DOWNLOADS);
-                Uri uri = getContentResolver().insert(
-                    android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv);
-                if (uri == null) throw new Exception("MediaStore rechazó el archivo");
-                java.io.OutputStream os = getContentResolver().openOutputStream(uri);
-                os.write(data);
-                os.close();
-                return "Descargas/" + name;
+                try {
+                    android.content.ContentValues cv = new android.content.ContentValues();
+                    cv.put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, name);
+                    cv.put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "text/plain");
+                    cv.put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH,
+                           android.os.Environment.DIRECTORY_DOWNLOADS);
+                    Uri uri = getContentResolver().insert(
+                        android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv);
+                    if (uri == null) throw new Exception("insert devolvió null");
+                    java.io.OutputStream os = getContentResolver().openOutputStream(uri);
+                    os.write(data);
+                    os.close();
+                    return "Descargas/" + name;
+                } catch (Exception e) { problems.append("MediaStore: ").append(e).append('\n'); }
             }
 
-            java.io.File dir = android.os.Environment.getExternalStoragePublicDirectory(
-                android.os.Environment.DIRECTORY_DOWNLOADS);
-            dir.mkdirs();
-            java.io.File out = new java.io.File(dir, name);
+            String[] dirs = {android.os.Environment.DIRECTORY_DOWNLOADS,
+                             android.os.Environment.DIRECTORY_DOCUMENTS};
+            for (String d : dirs) {
+                try {
+                    java.io.File dir =
+                        android.os.Environment.getExternalStoragePublicDirectory(d);
+                    dir.mkdirs();
+                    java.io.File out = new java.io.File(dir, name);
+                    java.io.FileOutputStream fos = new java.io.FileOutputStream(out);
+                    fos.write(data);
+                    fos.close();
+                    return out.getAbsolutePath();
+                } catch (Exception e) { problems.append(d).append(": ").append(e).append('\n'); }
+            }
+
+            try {
+                // Root of the shared storage: the one place the stock Archivos
+                // app reliably shows, unlike Android/data below.
+                java.io.File dir = android.os.Environment.getExternalStorageDirectory();
+                java.io.File out = new java.io.File(dir, name);
+                java.io.FileOutputStream fos = new java.io.FileOutputStream(out);
+                fos.write(data);
+                fos.close();
+                return out.getAbsolutePath();
+            } catch (Exception e) { problems.append("sdcard: ").append(e).append('\n'); }
+
+            try {
+                java.io.File dir = getExternalFilesDir(null);
+                if (dir != null) {
+                    dir.mkdirs();
+                    java.io.File out = new java.io.File(dir, name);
+                    java.io.FileOutputStream fos = new java.io.FileOutputStream(out);
+                    fos.write(data);
+                    fos.close();
+                    return out.getAbsolutePath();
+                }
+            } catch (Exception e) { problems.append("externalFiles: ").append(e).append('\n'); }
+
+            java.io.File out = new java.io.File(getFilesDir(), name);
             java.io.FileOutputStream fos = new java.io.FileOutputStream(out);
             fos.write(data);
             fos.close();
-            return out.getAbsolutePath();
+            return out.getAbsolutePath() + "\n\n(los otros destinos fallaron:\n"
+                 + problems + ")";
         }
 
         private String buildReport() {
