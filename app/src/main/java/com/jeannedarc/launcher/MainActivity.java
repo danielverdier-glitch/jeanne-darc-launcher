@@ -601,6 +601,25 @@ public class MainActivity extends Activity {
         }
 
         /**
+         * Write the file and tell the media scanner about it.
+         *
+         * Without the scan the report is invisible: a direct filesystem write
+         * leaves the media index untouched, and the stock file manager lists
+         * from that index, so the folder came up empty even though the file
+         * was sitting in it.
+         */
+        private String writeAndIndex(java.io.File out, byte[] data) throws Exception {
+            java.io.FileOutputStream fos = new java.io.FileOutputStream(out);
+            fos.write(data);
+            fos.close();
+            try {
+                android.media.MediaScannerConnection.scanFile(MainActivity.this,
+                    new String[]{out.getAbsolutePath()}, new String[]{"text/plain"}, null);
+            } catch (Exception ignored) {}
+            return out.getAbsolutePath();
+        }
+
+        /**
          * Save the report, returning the human-readable path it landed in.
          *
          * Tries several destinations because which ones are writable varies by
@@ -638,23 +657,15 @@ public class MainActivity extends Activity {
                     java.io.File dir =
                         android.os.Environment.getExternalStoragePublicDirectory(d);
                     dir.mkdirs();
-                    java.io.File out = new java.io.File(dir, name);
-                    java.io.FileOutputStream fos = new java.io.FileOutputStream(out);
-                    fos.write(data);
-                    fos.close();
-                    return out.getAbsolutePath();
+                    return writeAndIndex(new java.io.File(dir, name), data);
                 } catch (Exception e) { problems.append(d).append(": ").append(e).append('\n'); }
             }
 
             try {
-                // Root of the shared storage: the one place the stock Archivos
-                // app reliably shows, unlike Android/data below.
+                // Root of the shared storage: the one place the stock file
+                // manager reliably shows, unlike Android/data below.
                 java.io.File dir = android.os.Environment.getExternalStorageDirectory();
-                java.io.File out = new java.io.File(dir, name);
-                java.io.FileOutputStream fos = new java.io.FileOutputStream(out);
-                fos.write(data);
-                fos.close();
-                return out.getAbsolutePath();
+                return writeAndIndex(new java.io.File(dir, name), data);
             } catch (Exception e) { problems.append("sdcard: ").append(e).append('\n'); }
 
             try {
@@ -710,6 +721,18 @@ public class MainActivity extends Activity {
             dumpSettings(b, "System", android.provider.Settings.System.CONTENT_URI);
             dumpSettings(b, "Secure", android.provider.Settings.Secure.CONTENT_URI);
             dumpSettings(b, "Global", android.provider.Settings.Global.CONTENT_URI);
+
+            // The firmware keeps its own configuration in dot-directories at
+            // the root of shared storage, and there is a "forbid.apps" file
+            // there that by its name lists what the stock launcher refuses to
+            // show -- which is exactly the shape of the thing we are missing.
+            b.append("\n== ARCHIVOS DE CONFIGURACION DEL FIRMWARE ==\n");
+            java.io.File root = android.os.Environment.getExternalStorageDirectory();
+            String[] interesting = {"forbid.apps", ".nxos", ".custom", "custom_media",
+                                    "lyra", "carnet", "log", "ErrorReport"};
+            for (String nm : interesting) {
+                dumpPath(b, new java.io.File(root, nm), 0);
+            }
 
             b.append("\n== PAQUETES ==\n");
             b.append("(Google/AOSP se listan sin detalle; el resto va completo)\n");
@@ -776,6 +799,50 @@ public class MainActivity extends Activity {
                 }
             }
             return b.toString();
+        }
+
+        /**
+         * List a path, and print the contents of small text files under it.
+         * Depth-limited and size-capped: this is meant to surface a handful of
+         * config files, not to mirror the storage into the report.
+         */
+        private void dumpPath(StringBuilder b, java.io.File f, int depth) {
+            if (f == null || !f.exists() || depth > 3) return;
+            StringBuilder pad = new StringBuilder();
+            for (int i = 0; i < depth; i++) pad.append("  ");
+
+            if (f.isDirectory()) {
+                b.append(pad).append("[dir] ").append(f.getName()).append('\n');
+                java.io.File[] kids = f.listFiles();
+                if (kids == null) return;
+                java.util.Arrays.sort(kids, (x, y) -> x.getName().compareTo(y.getName()));
+                int n = 0;
+                for (java.io.File k : kids) {
+                    if (++n > 60) { b.append(pad).append("  ...\n"); return; }
+                    dumpPath(b, k, depth + 1);
+                }
+                return;
+            }
+
+            b.append(pad).append(f.getName()).append(" (").append(f.length()).append(" B)\n");
+            String lower = f.getName().toLowerCase();
+            boolean textish = lower.endsWith(".txt") || lower.endsWith(".ini")
+                || lower.endsWith(".conf") || lower.endsWith(".cfg") || lower.endsWith(".xml")
+                || lower.endsWith(".prop") || lower.endsWith(".json") || lower.endsWith(".apps")
+                || lower.endsWith(".list") || !lower.contains(".");
+            if (!textish || f.length() > 65536) return;
+            try {
+                byte[] buf = new byte[(int) f.length()];
+                java.io.FileInputStream in = new java.io.FileInputStream(f);
+                int read = in.read(buf);
+                in.close();
+                if (read > 0) {
+                    b.append(pad).append("  >>> ").append(new String(buf, 0, read, "UTF-8"))
+                     .append("\n  <<<\n");
+                }
+            } catch (Exception e) {
+                b.append(pad).append("  (no legible: ").append(e).append(")\n");
+            }
         }
 
         private void dumpSettings(StringBuilder b, String title, Uri uri) {
