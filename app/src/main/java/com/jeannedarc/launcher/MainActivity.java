@@ -921,6 +921,55 @@ public class MainActivity extends Activity {
             }
         }
 
+        /**
+         * Offer the firmware's factory screens directly.
+         *
+         * These are exported, so they start without the factory-menu password
+         * -- the password gates the menu that leads to them, not the screens
+         * themselves. They are also unreachable through the app picker, which
+         * only ever surfaces one activity per package.
+         *
+         * The CAN model selection is the one that matters for a unit wired
+         * into something other than the car it shipped for.
+         */
+        @JavascriptInterface
+        public void openFactoryScreens() {
+            final String[][] screens = {
+                {"Modelo / protocolo CAN",
+                 "cn.yunovo.car.settings/cn.yunovo.car.settings.canbus.CarModelSelectActivity"},
+                {"Ajustes del auto (lista)",
+                 "cn.yunovo.car.settings/cn.yunovo.car.settings.SettingsListActivity"},
+                {"Shell",
+                 "cn.yunovo.car.settings/cn.yunovo.car.settings.ShellActivity"},
+                {"Ruta de navegación",
+                 "cn.yunovo.car.settings/cn.yunovo.car.settings.navipath.NaviPathSettings"},
+                {"FactoryTest (principal)",
+                 "cn.yunovo.nxos.factorytest/cn.yunovo.nxos.factorytest.view.MainActivity"},
+                {"FactoryTest (índice)",
+                 "cn.yunovo.nxos.factorytest/cn.yunovo.nxos.factorytest.view.IndexActivity"},
+                {"FactoryTest (pruebas)",
+                 "cn.yunovo.nxos.factorytest/cn.yunovo.nxos.factorytest.view.TestActivity"},
+                {"EngineerMode (MTK)",
+                 "com.mediatek.engineermode/com.mediatek.engineermode.EngineerMode"},
+                {"Pantalla de inicio de fábrica",
+                 "cn.yunovo.nxos.themestore/cn.yunovo.nxos.themestore.ui.activity.HomeActivity"},
+            };
+            String[] names = new String[screens.length];
+            for (int i = 0; i < screens.length; i++) names[i] = screens[i][0];
+
+            runOnUiThread(() -> new AlertDialog.Builder(MainActivity.this)
+                .setTitle("Pantallas de fábrica")
+                .setItems(names, (d, which) -> {
+                    if (!tryLaunchComponent(screens[which][1])) {
+                        android.widget.Toast.makeText(MainActivity.this,
+                            "El sistema rechazó esa pantalla",
+                            android.widget.Toast.LENGTH_SHORT).show();
+                    }
+                })
+                .setNegativeButton("Cancelar", null)
+                .show());
+        }
+
         /** Start "pkg/Class" explicitly. False if the system refused it. */
         private boolean tryLaunchComponent(String key) {
             try {
