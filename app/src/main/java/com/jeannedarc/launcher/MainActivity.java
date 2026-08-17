@@ -734,9 +734,29 @@ public class MainActivity extends Activity {
                 dumpPath(b, new java.io.File(root, nm), 0);
             }
 
+            // There is no radio activity anywhere on this unit: the stock home
+            // is a launcher theme and the radio is a view inside it, driven by
+            // the MCU. So the way in, if there is one, is not a component but
+            // whatever the firmware's own providers expose -- these are its
+            // configuration and car-service databases, and they are exported.
+            b.append("\n== CONTENT PROVIDERS DEL FIRMWARE ==\n");
+            String[] auths = {"cn.yunovo.config", "cn.yunovo.nxos.carservice.provider",
+                              "cn.yunovo.nxos.bt", "cn.yunovo.nxos.platformservice",
+                              "cn.yunovo.nxos.data.collector",
+                              "cn.yunovo.nxos.usercenter.server"};
+            String[] paths = {"", "settings", "config", "system", "car", "radio", "fm",
+                              "source", "media", "audio", "key", "value", "data", "info"};
+            for (String auth : auths) {
+                for (String path : paths) {
+                    dumpProvider(b, "content://" + auth + (path.isEmpty() ? "" : "/" + path));
+                }
+            }
+
             b.append("\n== PAQUETES ==\n");
             b.append("(Google/AOSP se listan sin detalle; el resto va completo)\n");
-            java.util.List<ApplicationInfo> apps = pm.getInstalledApplications(0);
+            java.util.List<ApplicationInfo> apps = pm.getInstalledApplications(
+                PackageManager.MATCH_DISABLED_COMPONENTS
+                | PackageManager.MATCH_UNINSTALLED_PACKAGES);
             java.util.Collections.sort(apps, (x, y) -> x.packageName.compareTo(y.packageName));
 
             for (ApplicationInfo ai : apps) {
@@ -755,9 +775,13 @@ public class MainActivity extends Activity {
 
                 android.content.pm.PackageInfo pi;
                 try {
+                    // MATCH_DISABLED_COMPONENTS matters: a component the OEM
+                    // ships disabled and enables on demand is invisible without
+                    // it, and that is exactly how an optional tuner would ship.
                     pi = pm.getPackageInfo(pkg, PackageManager.GET_ACTIVITIES
                         | PackageManager.GET_SERVICES | PackageManager.GET_RECEIVERS
-                        | PackageManager.GET_PROVIDERS);
+                        | PackageManager.GET_PROVIDERS
+                        | PackageManager.MATCH_DISABLED_COMPONENTS);
                 } catch (Exception e) { b.append("  (no legible)\n"); continue; }
 
                 if (pi.sharedUserId != null) {
@@ -842,6 +866,41 @@ public class MainActivity extends Activity {
                 }
             } catch (Exception e) {
                 b.append(pad).append("  (no legible: ").append(e).append(")\n");
+            }
+        }
+
+        /** Query one provider path and print whatever comes back. */
+        private void dumpProvider(StringBuilder b, String uriStr) {
+            android.database.Cursor c = null;
+            try {
+                c = getContentResolver().query(Uri.parse(uriStr), null, null, null, null);
+                if (c == null) return; // path not handled -- expected for most guesses
+                b.append("\n-- ").append(uriStr)
+                 .append(" (").append(c.getCount()).append(" filas)\n");
+                String[] cols = c.getColumnNames();
+                b.append("   cols: ");
+                for (String col : cols) b.append(col).append(' ');
+                b.append('\n');
+                int rows = 0;
+                while (c.moveToNext() && rows++ < 400) {
+                    b.append("   ");
+                    for (int i = 0; i < cols.length; i++) {
+                        String v;
+                        try { v = c.getString(i); } catch (Exception e) { v = "?"; }
+                        b.append(cols[i]).append('=').append(v).append(" | ");
+                    }
+                    b.append('\n');
+                }
+                if (rows >= 400) b.append("   ...\n");
+            } catch (Exception e) {
+                // Only worth reporting when the path exists but refuses us --
+                // a permission denial names something real.
+                String msg = String.valueOf(e);
+                if (msg.contains("ermission")) {
+                    b.append("\n-- ").append(uriStr).append(" DENEGADO: ").append(msg).append('\n');
+                }
+            } finally {
+                if (c != null) c.close();
             }
         }
 
