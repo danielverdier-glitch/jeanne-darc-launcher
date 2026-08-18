@@ -749,16 +749,20 @@ public class MainActivity extends Activity {
                          ? "CONCEDIDO" : "denegado").append('\n');
             }
 
-            b.append("\n== CONTENT PROVIDERS DEL FIRMWARE ==\n");
-            String[] auths = {"cn.yunovo.config", "cn.yunovo.nxos.carservice.provider",
-                              "cn.yunovo.nxos.bt", "cn.yunovo.nxos.platformservice",
+            b.append("\n== CONFIG PROVIDER (NxSettingsProvider) A FONDO ==\n");
+            b.append("(YUNOVO_READ/WRITE concedidos, asi que aca deberia salir algo)\n");
+            dumpConfigDeep(b);
+
+            b.append("\n== OTROS PROVIDERS DEL FIRMWARE ==\n");
+            String[] auths = {"cn.yunovo.nxos.carservice.provider",
+                              "cn.yunovo.nxos.platformservice",
                               "cn.yunovo.nxos.data.collector",
                               "cn.yunovo.nxos.usercenter.server"};
             String[] paths = {"", "settings", "config", "system", "car", "radio", "fm",
                               "source", "media", "audio", "key", "value", "data", "info"};
             for (String auth : auths) {
                 for (String path : paths) {
-                    dumpProvider(b, "content://" + auth + (path.isEmpty() ? "" : "/" + path));
+                    dumpProvider(b, "content://" + auth + (path.isEmpty() ? "" : "/" + path), true);
                 }
             }
 
@@ -895,11 +899,81 @@ public class MainActivity extends Activity {
         }
 
         /** Query one provider path and print whatever comes back. */
-        private void dumpProvider(StringBuilder b, String uriStr) {
+        /**
+         * Probe cn.yunovo.config every way that a name/value config provider on
+         * these units is known to answer. We hold YUNOVO_READ/WRITE now, so the
+         * question is no longer permission but shape: which URI paths it serves,
+         * and whether it exposes its store through query() or through call().
+         * Everything is reported, empty results included, so the schema can be
+         * read off the output instead of guessed at again.
+         */
+        private void dumpConfigDeep(StringBuilder b) {
+            String auth = "cn.yunovo.config";
+
+            // Far wider path list than before, including the ones an audio
+            // source / tuner setting tends to hide behind on NXOS.
+            String[] paths = {"", "settings", "config", "configs", "setting", "system",
+                "global", "secure", "car", "carinfo", "radio", "fm", "tuner", "band",
+                "freq", "frequency", "source", "audiosource", "media", "audio", "sound",
+                "amp", "dsp", "mcu", "canbus", "can", "key", "keys", "value", "values",
+                "kv", "data", "info", "state", "status", "all", "nxpal", "pal", "zen",
+                "factory", "password", "pwd", "engineer", "app", "apps", "table"};
+            for (String path : paths) {
+                dumpProvider(b, "content://" + auth + (path.isEmpty() ? "" : "/" + path), true);
+            }
+
+            // Some of these providers key a single settings table by row, like
+            // Android's own Settings: content://auth/settings/<name>. Try to
+            // read back the audio source / radio keys directly.
+            String[] keys = {"source", "audio_source", "current_source", "last_source",
+                "radio", "fm", "band", "freq", "frequency", "media_source"};
+            for (String k : keys) {
+                dumpProvider(b, "content://" + auth + "/settings/" + k, true);
+            }
+
+            // The other doorway: ContentResolver.call(). NX config providers
+            // commonly expose their store through a method rather than a table.
+            // Try the usual method names with and without a key argument.
+            String[] methods = {"getAll", "get_all", "getall", "list", "dump", "query",
+                "get", "getString", "getInt", "getConfig", "get_config", "readAll",
+                "getKeys", "keys", "select"};
+            String[] callArgs = {null, "", "source", "radio", "fm", "audio_source"};
+            Uri authUri = Uri.parse("content://" + auth);
+            for (String m : methods) {
+                for (String arg : callArgs) {
+                    try {
+                        android.os.Bundle res = getContentResolver().call(authUri, m, arg, null);
+                        if (res == null) continue;
+                        b.append("-- call(\"").append(m).append("\", arg=")
+                         .append(arg == null ? "null" : "\"" + arg + "\"").append(") -> ");
+                        java.util.Set<String> ks = res.keySet();
+                        if (ks.isEmpty()) { b.append("(bundle vacio)\n"); continue; }
+                        b.append('\n');
+                        for (String bk : ks) {
+                            Object v = res.get(bk);
+                            b.append("     ").append(bk).append('=').append(v).append('\n');
+                        }
+                    } catch (Exception e) {
+                        // Only surface a method that exists but rejected the call.
+                        String msg = String.valueOf(e);
+                        if (!msg.contains("NullPointerException")
+                                && !msg.toLowerCase().contains("unknown")
+                                && !msg.contains("IllegalArgument")) {
+                            b.append("-- call(\"").append(m).append("\") ERROR: ")
+                             .append(msg).append('\n');
+                        }
+                    }
+                }
+            }
+        }
+
+        private void dumpProvider(StringBuilder b, String uriStr) { dumpProvider(b, uriStr, false); }
+
+        private void dumpProvider(StringBuilder b, String uriStr, boolean verbose) {
             android.database.Cursor c = null;
             try {
                 c = getContentResolver().query(Uri.parse(uriStr), null, null, null, null);
-                if (c == null) return; // path not handled -- expected for most guesses
+                if (c == null) { if (verbose) b.append("-- ").append(uriStr).append(" -> null\n"); return; }
                 b.append("\n-- ").append(uriStr)
                  .append(" (").append(c.getCount()).append(" filas)\n");
                 String[] cols = c.getColumnNames();
