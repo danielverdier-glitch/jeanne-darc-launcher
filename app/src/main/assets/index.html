@@ -152,6 +152,7 @@ html,body{width:100vw;height:100vh;overflow:hidden;background:#0a1622;font-famil
     <div class="find-radio" id="findRadio">&#x1F4FB; Buscar la radio del estéreo</div>
     <div class="find-radio" id="dumpInfo">&#x1F9FE; Generar informe del sistema</div>
     <div class="find-radio" id="factory">&#x1F527; Pantallas de fábrica</div>
+    <div class="find-radio" id="capRadio">&#x1F3AF; Capturar la radio (abrí la radio y volvé)</div>
     <div class="app-grid" id="appGrid"></div>
     <div class="picker-close" id="appClose">&#x2715; Cancelar</div>
   </div>
@@ -351,6 +352,12 @@ document.getElementById("dumpInfo").addEventListener("click",function(){
 // not listed by the picker, which shows only one activity per package.
 document.getElementById("factory").addEventListener("click",function(){
   if(Bridge&&Bridge.openFactoryScreens) Bridge.openFactoryScreens();
+  else alert("Esta función necesita la app instalada en el estéreo.");
+});
+// Reads the recent foreground history to name the activity the stock Radio
+// button opened -- the one thing static inspection could not reveal.
+document.getElementById("capRadio").addEventListener("click",function(){
+  if(Bridge&&Bridge.captureRadio) Bridge.captureRadio();
   else alert("Esta función necesita la app instalada en el estéreo.");
 });
 

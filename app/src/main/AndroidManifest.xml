@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     package="com.jeannedarc.launcher">
 
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
@@ -18,6 +19,14 @@
     <uses-permission android:name="cn.yunovo.config.permission.YUNOVO_READ" />
     <uses-permission android:name="cn.yunovo.config.permission.YUNOVO_WRITE" />
     <uses-permission android:name="com.yunovo.permission.READ_BLUETOOTH_STATE" />
+
+    <!-- Special access: read which activity came to the foreground and when.
+         The user grants it once via the "usage access" settings screen; with
+         it we can name the exact component the stock home's Radio button
+         opened, without needing the firmware's internal source-switch idiom. -->
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
+        tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.GET_TASKS" />
 
     <queries>
         <intent>

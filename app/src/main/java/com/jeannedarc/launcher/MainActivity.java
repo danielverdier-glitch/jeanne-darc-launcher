@@ -563,6 +563,154 @@ public class MainActivity extends Activity {
         }
 
         /**
+         * Capture which component was recently in the foreground, so the stock
+         * home's Radio button can be identified and copied.
+         *
+         * Android records every move-to-foreground with a timestamp. If the
+         * user opens the radio and comes back, that record still names the
+         * exact activity the Radio button started -- which is precisely the
+         * thing no amount of static inspection could reveal, because the radio
+         * is an internal screen with no launcher entry. Reading it needs the
+         * "usage access" special grant, so the first tap sends the user to
+         * enable it and returns.
+         */
+        @JavascriptInterface
+        public void captureRadio() {
+            if (!hasUsageAccess()) {
+                runOnUiThread(() -> {
+                    new AlertDialog.Builder(MainActivity.this)
+                        .setTitle("Falta un permiso (una sola vez)")
+                        .setMessage("Para leer qué pantalla abre el botón Radio, activá "
+                            + "el acceso de uso para JEANNE D'ARC.\n\n"
+                            + "1) Te llevo a esa pantalla\n2) Buscá JEANNE D'ARC y activalo\n"
+                            + "3) Volvé y tocá otra vez \"Capturar la radio\"")
+                        .setPositiveButton("Ir a activarlo", (d, w) -> {
+                            try {
+                                startActivity(new Intent(
+                                    android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS));
+                            } catch (Exception e) {
+                                android.widget.Toast.makeText(MainActivity.this,
+                                    "No encontré esa pantalla: " + e,
+                                    android.widget.Toast.LENGTH_LONG).show();
+                            }
+                        })
+                        .setNegativeButton("Cancelar", null)
+                        .show();
+                });
+                return;
+            }
+
+            new Thread(() -> {
+                String body;
+                try { body = buildCapture(); }
+                catch (Exception e) { body = "ERROR en la captura: " + e; }
+                String where;
+                try { where = writeNamed("jeanne-darc-captura-radio.txt", body); }
+                catch (Exception e) { where = null; }
+                final String path = where;
+                runOnUiThread(() -> new AlertDialog.Builder(MainActivity.this)
+                    .setTitle(path != null ? "Captura lista" : "No se pudo guardar")
+                    .setMessage(path != null
+                        ? "Guardé la captura en:\n\n" + path
+                          + "\n\nMandásela a Claude: adentro está el nombre de la "
+                          + "pantalla que abriste."
+                        : "No pude escribir el archivo.")
+                    .setPositiveButton("OK", null)
+                    .show());
+            }).start();
+        }
+
+        private boolean hasUsageAccess() {
+            try {
+                android.app.AppOpsManager ops =
+                    (android.app.AppOpsManager) getSystemService(APP_OPS_SERVICE);
+                int mode = ops.checkOpNoThrow("android:get_usage_stats",
+                    android.os.Process.myUid(), getPackageName());
+                return mode == android.app.AppOpsManager.MODE_ALLOWED;
+            } catch (Exception e) { return false; }
+        }
+
+        private String buildCapture() {
+            StringBuilder b = new StringBuilder();
+            b.append("== JEANNE D'ARC - captura de la radio ==\n");
+            long now = System.currentTimeMillis();
+            b.append("ahora=").append(now).append('\n');
+
+            // The heart of it: every foreground/background transition in the
+            // last 10 minutes, newest last. The activity on screen while the
+            // radio played is named here.
+            b.append("\n== EVENTOS DE PANTALLA (ultimos 10 min) ==\n");
+            try {
+                android.app.usage.UsageStatsManager usm =
+                    (android.app.usage.UsageStatsManager) getSystemService(USAGE_STATS_SERVICE);
+                android.app.usage.UsageEvents ev = usm.queryEvents(now - 10 * 60 * 1000, now);
+                android.app.usage.UsageEvents.Event e = new android.app.usage.UsageEvents.Event();
+                int n = 0;
+                while (ev.hasNextEvent()) {
+                    ev.getNextEvent(e);
+                    int t = e.getEventType();
+                    String tn = t == 1 ? "AL_FRENTE" : t == 2 ? "al_fondo"
+                              : t == 7 ? "interaccion" : "tipo" + t;
+                    // Only the transitions that matter, to keep it readable.
+                    if (t == 1 || t == 2) {
+                        b.append(tn).append("  ").append(e.getPackageName())
+                         .append(" / ").append(e.getClassName())
+                         .append("  (+").append((e.getTimeStamp() - (now - 600000)) / 1000)
+                         .append("s)\n");
+                        n++;
+                    }
+                }
+                if (n == 0) b.append("(sin eventos -- ¿se activó el acceso de uso?)\n");
+            } catch (Exception ex) {
+                b.append("ERROR leyendo eventos: ").append(ex).append('\n');
+            }
+
+            b.append("\n== PROCESOS EN PRIMER PLANO ==\n");
+            try {
+                android.app.ActivityManager am =
+                    (android.app.ActivityManager) getSystemService(ACTIVITY_SERVICE);
+                java.util.List<android.app.ActivityManager.RunningAppProcessInfo> ps =
+                    am.getRunningAppProcesses();
+                if (ps != null) for (android.app.ActivityManager.RunningAppProcessInfo pi : ps) {
+                    if (pi.importance <= 125) { // FOREGROUND(100)/VISIBLE(125)
+                        b.append("imp=").append(pi.importance).append("  ").append(pi.processName);
+                        if (pi.pkgList != null) for (String pk : pi.pkgList) b.append(' ').append(pk);
+                        b.append('\n');
+                    }
+                }
+            } catch (Exception ex) { b.append("ERROR: ").append(ex).append('\n'); }
+
+            b.append("\n== SERVICIOS DEL FIRMWARE CORRIENDO ==\n");
+            try {
+                android.app.ActivityManager am =
+                    (android.app.ActivityManager) getSystemService(ACTIVITY_SERVICE);
+                for (android.app.ActivityManager.RunningServiceInfo si :
+                        am.getRunningServices(500)) {
+                    String pk = si.service.getPackageName();
+                    if (pk.contains("yunovo") || pk.contains("car") || pk.contains("radio")
+                            || pk.contains("mtk") || pk.contains("media")) {
+                        b.append(si.service.getClassName())
+                         .append(si.foreground ? "  [foreground]" : "").append('\n');
+                    }
+                }
+            } catch (Exception ex) { b.append("ERROR: ").append(ex).append('\n'); }
+
+            // Diff bait: the same settings tables as the baseline report, so a
+            // source/band/frequency key the radio flipped shows up by comparison.
+            dumpSettings(b, "System", android.provider.Settings.System.CONTENT_URI);
+            dumpSettings(b, "Global", android.provider.Settings.Global.CONTENT_URI);
+            return b.toString();
+        }
+
+        private String writeNamed(String name, String body) throws Exception {
+            byte[] data = body.getBytes("UTF-8");
+            java.io.File dir = android.os.Environment.getExternalStoragePublicDirectory(
+                android.os.Environment.DIRECTORY_DOWNLOADS);
+            dir.mkdirs();
+            return writeAndIndex(new java.io.File(dir, name), data);
+        }
+
+                /**
          * Write a full report of what this firmware actually contains to the
          * device's Downloads folder, for offline analysis.
          *
