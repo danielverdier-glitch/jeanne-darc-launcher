@@ -1181,6 +1181,61 @@ public class MainActivity extends Activity {
         }
 
         /**
+         * Copy the stock launcher package out to Downloads for offline analysis.
+         *
+         * The Radio card's exact intent is compiled into cn.yunovo.nxos.exlauncher,
+         * which ships as a zip under the active theme (skin.path=/custom/etc/nxos/
+         * theme/20363/res). No text file exposes it, but the zip itself can be
+         * pulled off the device and taken apart elsewhere, where the card's real
+         * launch action and extras can be read out of it directly.
+         */
+        @JavascriptInterface
+        public void exportLauncherZip() {
+            new Thread(() -> {
+                String[] candidates = {
+                    "/custom/etc/nxos/theme/20363/res/cn.yunovo.nxos.exlauncher.zip",
+                    "/custom/etc/nxos/theme/20363/res/cn.yunovo.nxos.exsystemui.zip",
+                };
+                StringBuilder done = new StringBuilder();
+                StringBuilder failed = new StringBuilder();
+                for (String src : candidates) {
+                    try {
+                        java.io.File in = new java.io.File(src);
+                        if (!in.exists()) { failed.append(src).append(" (no existe)\n"); continue; }
+                        java.io.File dir = android.os.Environment
+                            .getExternalStoragePublicDirectory(
+                                android.os.Environment.DIRECTORY_DOWNLOADS);
+                        dir.mkdirs();
+                        String outName = in.getName();
+                        java.io.File out = new java.io.File(dir, outName);
+                        java.io.FileInputStream fis = new java.io.FileInputStream(in);
+                        java.io.FileOutputStream fos = new java.io.FileOutputStream(out);
+                        byte[] buf = new byte[8192];
+                        int r;
+                        while ((r = fis.read(buf)) > 0) fos.write(buf, 0, r);
+                        fis.close(); fos.close();
+                        try {
+                            android.media.MediaScannerConnection.scanFile(MainActivity.this,
+                                new String[]{out.getAbsolutePath()}, null, null);
+                        } catch (Exception ignored) {}
+                        done.append(out.getAbsolutePath()).append('\n');
+                    } catch (Exception e) {
+                        failed.append(src).append(" (").append(e).append(")\n");
+                    }
+                }
+                final String msg = (done.length() > 0
+                        ? "Copiado a Descargas:\n\n" + done + "\nSubíselo a Claude."
+                        : "No pude copiar nada.\n\n") + (failed.length() > 0
+                        ? "\nFallos:\n" + failed : "");
+                runOnUiThread(() -> new AlertDialog.Builder(MainActivity.this)
+                    .setTitle(done.length() > 0 ? "Launcher exportado" : "No se pudo")
+                    .setMessage(msg)
+                    .setPositiveButton("OK", null)
+                    .show());
+            }).start();
+        }
+
+        /**
          * Open the firmware media app, where the radio lives as a source.
          *
          * The foreground capture showed the home's Radio button bringing

@@ -154,6 +154,7 @@ html,body{width:100vw;height:100vh;overflow:hidden;background:#0a1622;font-famil
     <div class="find-radio" id="factory">&#x1F527; Pantallas de fábrica</div>
     <div class="find-radio" id="capRadio">&#x1F3AF; Capturar la radio (abrí la radio y volvé)</div>
     <div class="find-radio" id="openRadio">&#x1F4FB; Abrir la radio (probar)</div>
+    <div class="find-radio" id="exportZip">&#x1F4E6; Exportar launcher de fábrica (para Claude)</div>
     <div class="app-grid" id="appGrid"></div>
     <div class="picker-close" id="appClose">&#x2715; Cancelar</div>
   </div>
@@ -365,6 +366,12 @@ document.getElementById("capRadio").addEventListener("click",function(){
 // this tries the ways the theme's Radio card might ask that app for FM.
 document.getElementById("openRadio").addEventListener("click",function(){
   if(Bridge&&Bridge.openRadioSource) Bridge.openRadioSource();
+  else alert("Esta función necesita la app instalada en el estéreo.");
+});
+// Copies the stock launcher zip out so its Radio-card intent can be read from
+// the compiled package -- the definitive source, no more guessing.
+document.getElementById("exportZip").addEventListener("click",function(){
+  if(Bridge&&Bridge.exportLauncherZip) Bridge.exportLauncherZip();
   else alert("Esta función necesita la app instalada en el estéreo.");
 });
 
