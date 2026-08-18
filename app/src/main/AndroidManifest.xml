@@ -52,7 +52,30 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- HOME + DEFAULT make the launcher selectable as the startup
+                 screen. Declaring them only makes it eligible in Android's
+                 "home app" picker; it does NOT become the default on its own.
+                 The user opts in from the "Poner como pantalla de inicio"
+                 button, and the test stays a normal app until then. -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.HOME" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
         </activity>
+
+        <!-- Notification-listener service backing the now-playing widget.
+             It reads nothing from notifications; its only purpose is to hold
+             the access that MediaSessionManager.getActiveSessions() requires. -->
+        <service
+            android:name=".NLService"
+            android:label="JEANNE D'ARC — música"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
 
     </application>
 

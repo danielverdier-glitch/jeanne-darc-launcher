@@ -17,6 +17,10 @@ import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.media.session.MediaController;
+import android.media.session.MediaSessionManager;
+import android.media.MediaMetadata;
+import android.media.session.PlaybackState;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -250,6 +254,130 @@ public class MainActivity extends Activity {
         }
 
         /**
+         * Open the Android screen where the user picks the default home app,
+         * so our launcher can be set as the startup screen without hunting for
+         * the setting. Falls back to the generic home chooser if that screen
+         * is not present on this firmware.
+         */
+        @JavascriptInterface
+        public void openHomeSettings() {
+            try {
+                startActivity(new Intent(android.provider.Settings.ACTION_HOME_SETTINGS));
+            } catch (Exception e) {
+                try {
+                    Intent i = new Intent(Intent.ACTION_MAIN);
+                    i.addCategory(Intent.CATEGORY_HOME);
+                    i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(i);
+                } catch (Exception ignored) {}
+            }
+        }
+
+        /** True once the user has granted notification-listener access. */
+        @JavascriptInterface
+        public boolean hasMediaAccess() {
+            try {
+                String flat = android.provider.Settings.Secure.getString(
+                    getContentResolver(), "enabled_notification_listeners");
+                return flat != null && flat.contains(getPackageName());
+            } catch (Exception e) { return false; }
+        }
+
+        /** Send the user to grant notification access (for the music widget). */
+        @JavascriptInterface
+        public void openMediaAccess() {
+            try {
+                startActivity(new Intent(
+                    "android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"));
+            } catch (Exception e) {
+                try {
+                    startActivity(new Intent(
+                        android.provider.Settings.ACTION_SETTINGS));
+                } catch (Exception ignored) {}
+            }
+        }
+
+        private MediaController activeController() {
+            try {
+                MediaSessionManager msm = (MediaSessionManager)
+                    getSystemService(MEDIA_SESSION_SERVICE);
+                ComponentName nl = new ComponentName(MainActivity.this, NLService.class);
+                java.util.List<MediaController> cs = msm.getActiveSessions(nl);
+                if (cs == null || cs.isEmpty()) return null;
+                // Prefer the one that is actually playing; else the first.
+                for (MediaController c : cs) {
+                    PlaybackState ps = c.getPlaybackState();
+                    if (ps != null && ps.getState() == PlaybackState.STATE_PLAYING) return c;
+                }
+                return cs.get(0);
+            } catch (Exception e) { return null; }
+        }
+
+        /**
+         * What is playing right now, as JSON for the widget:
+         * {access:bool, playing:bool, title:str, artist:str, app:str}.
+         * The widget is always on screen, so this always returns a shape --
+         * empty strings when nothing is playing.
+         */
+        @JavascriptInterface
+        public String getNowPlaying() {
+            JSONObject o = new JSONObject();
+            try {
+                boolean access = hasMediaAccess();
+                o.put("access", access);
+                o.put("playing", false);
+                o.put("title", "");
+                o.put("artist", "");
+                o.put("app", "");
+                if (!access) return o.toString();
+
+                MediaController c = activeController();
+                if (c == null) return o.toString();
+
+                String appName = c.getPackageName();
+                try {
+                    ApplicationInfo ai = getPackageManager().getApplicationInfo(appName, 0);
+                    appName = getPackageManager().getApplicationLabel(ai).toString();
+                } catch (Exception ignored) {}
+                o.put("app", appName);
+
+                PlaybackState ps = c.getPlaybackState();
+                o.put("playing", ps != null && ps.getState() == PlaybackState.STATE_PLAYING);
+
+                MediaMetadata m = c.getMetadata();
+                if (m != null) {
+                    String title = m.getString(MediaMetadata.METADATA_KEY_TITLE);
+                    if (title == null) title = m.getString(MediaMetadata.METADATA_KEY_DISPLAY_TITLE);
+                    String artist = m.getString(MediaMetadata.METADATA_KEY_ARTIST);
+                    if (artist == null) artist = m.getString(MediaMetadata.METADATA_KEY_ALBUM_ARTIST);
+                    if (artist == null) artist = m.getString(MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE);
+                    o.put("title", title == null ? "" : title);
+                    o.put("artist", artist == null ? "" : artist);
+                }
+            } catch (Exception e) {
+                try { o.put("error", String.valueOf(e)); } catch (Exception ignored) {}
+            }
+            return o.toString();
+        }
+
+        /** Transport control for the active media session: play/prev/next. */
+        @JavascriptInterface
+        public void mediaControl(String cmd) {
+            try {
+                MediaController c = activeController();
+                if (c == null) return;
+                MediaController.TransportControls t = c.getTransportControls();
+                if ("next".equals(cmd)) t.skipToNext();
+                else if ("prev".equals(cmd)) t.skipToPrevious();
+                else {
+                    PlaybackState ps = c.getPlaybackState();
+                    if (ps != null && ps.getState() == PlaybackState.STATE_PLAYING) t.pause();
+                    else t.play();
+                }
+            } catch (Exception ignored) {}
+        }
+
+        /**
          * Save a string value to SharedPreferences.
          */
         @JavascriptInterface
@@ -299,20 +427,6 @@ public class MainActivity extends Activity {
                 JSONArray result = new JSONArray();
                 java.util.Set<String> seen = new java.util.HashSet<>();
                 String selfPkg = getPackageName();
-
-                // Pin the radio first once findRadio() has confirmed one, so it
-                // is not buried among the hundreds of firmware screens that made
-                // it impossible to pick out by hand in the first place.
-                String radioKey = loadPrefs(KEY_RADIO);
-                if (radioKey != null && !radioKey.isEmpty() && seen.add(radioKey)) {
-                    try {
-                        int slash = radioKey.indexOf('/');
-                        ComponentName cn = new ComponentName(
-                            radioKey.substring(0, slash), radioKey.substring(slash + 1));
-                        addApp(result, radioKey, "\ud83d\udcfb Radio",
-                               pm.getActivityInfo(cn, 0).loadIcon(pm));
-                    } catch (Exception ignored) {}
-                }
 
                 Intent mainIntent = new Intent(Intent.ACTION_MAIN, null);
                 mainIntent.addCategory(Intent.CATEGORY_LAUNCHER);
@@ -385,76 +499,6 @@ public class MainActivity extends Activity {
                     catch (Exception e) { continue; }
 
                     addApp(result, pkg + "/" + found.getClassName(), name, icon);
-                }
-
-                // Third pass: activity-level scan for the stereo's built-in Radio.
-                // On this head unit (MTK / NXOS, product Y6) the radio is NOT a
-                // package of its own -- Settings shows "Ajustes radio" as a section
-                // of the firmware's own settings, and the stock launcher opens the
-                // radio as an internal screen. So the second pass above, which only
-                // ever exposes ONE activity per package (the first launchable one),
-                // can never reach it. Here we walk every declared activity of every
-                // package and surface the ones whose class name looks radio-related,
-                // each as its own explicit "pkg/ClassName" entry.
-                for (android.content.pm.ApplicationInfo ai : pm.getInstalledApplications(0)) {
-                    String pkg = ai.packageName;
-                    if (pkg.equals(selfPkg)) continue;
-
-                    android.content.pm.ActivityInfo[] acts;
-                    try {
-                        android.content.pm.PackageInfo pi = pm.getPackageInfo(pkg,
-                            PackageManager.GET_ACTIVITIES);
-                        acts = pi.activities;
-                    } catch (Exception e) { continue; }
-                    if (acts == null) continue;
-
-                    for (android.content.pm.ActivityInfo act : acts) {
-                        String cls = act.name;
-                        String lower = cls.toLowerCase();
-                        // Match on the class name only. Matching the package would
-                        // re-list dozens of unrelated screens from any package that
-                        // happens to contain "fm" (e.g. "...confirm...").
-                        // This is a Chinese head unit, so cover the Chinese terms
-                        // too: \u6536\u97f3\u673a (radio set), \u7535\u53f0 (station),
-                        // \u8c03\u9891 (FM/tuning), \u5e7f\u64ad (broadcast). Class names are
-                        // usually ASCII, but the firmware's own screens are the
-                        // exact case where that assumption tends to break.
-                        boolean looksRadio = lower.contains("radio")
-                                          || lower.contains("tuner")
-                                          || lower.contains("fmradio")
-                                          || lower.endsWith(".fm")
-                                          || lower.contains(".fm.")
-                                          || cls.contains("\u6536\u97f3\u673a")
-                                          || cls.contains("\u7535\u53f0")
-                                          || cls.contains("\u8c03\u9891")
-                                          || cls.contains("\u5e7f\u64ad");
-                        if (!looksRadio) {
-                            // Also check the activity's own visible label -- an OEM
-                            // screen class named e.g. ".ActivityMain" can still carry
-                            // a "\u6536\u97f3\u673a" label, and that label is what the stock
-                            // launcher shows on its Radio card.
-                            String lbl;
-                            try { lbl = act.loadLabel(pm).toString(); }
-                            catch (Exception e) { continue; }
-                            String ll = lbl.toLowerCase();
-                            looksRadio = ll.contains("radio") || ll.contains("tuner")
-                                      || lbl.contains("\u6536\u97f3\u673a") || lbl.contains("\u7535\u53f0")
-                                      || lbl.contains("\u8c03\u9891") || lbl.contains("\u5e7f\u64ad");
-                        }
-                        if (!looksRadio) continue;
-
-                        String key = pkg + "/" + cls;
-                        if (!seen.add(key)) continue;
-
-                        android.graphics.drawable.Drawable icon;
-                        try { icon = pm.getApplicationIcon(ai); }
-                        catch (Exception e) { continue; }
-
-                        // Show the short class name so several candidates from the
-                        // same package stay distinguishable in the picker.
-                        String shortCls = cls.substring(cls.lastIndexOf('.') + 1);
-                        addApp(result, key, "\u25B6 " + shortCls, icon);
-                    }
                 }
 
                 return result.toString();

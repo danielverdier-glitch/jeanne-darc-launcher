@@ -87,6 +87,30 @@ html,body{width:100vw;height:100vh;overflow:hidden;background:#0a1622;font-famil
 .swap-item{display:flex;align-items:center;gap:14px;padding:12px 16px;border-radius:8px;cursor:pointer;transition:background 0.1s;color:rgba(255,255,255,0.85);font-size:13px}
 .swap-item:active{background:rgba(255,255,255,0.1)}
 .swap-num{width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;font-size:11px;color:#7dd4f0;flex-shrink:0}
+
+/* ===== CAJON PROPIO "MAS APPS" (10x4) ===== */
+.drawer{position:fixed;top:0;left:0;width:100%;height:100%;z-index:120;display:none;flex-direction:column;background-size:cover;background-position:center}
+.drawer.open{display:flex}
+.drawer-grid{flex:1;display:grid;grid-template-columns:repeat(10,1fr);grid-template-rows:repeat(4,1fr);gap:2px;padding:16px 18px 10px;overflow-y:auto}
+.dr-item{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;cursor:pointer;border-radius:8px}
+.dr-item:active{background:rgba(255,255,255,0.12)}
+.dr-ic{width:46px;height:46px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:20px;overflow:hidden;box-shadow:0 2px 6px rgba(0,0,0,0.35)}
+.dr-nm{font-size:11px;line-height:1.1;text-align:center;max-width:88px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dr-special .dr-ic{background:transparent;border:1.5px dashed currentColor}
+.drawer.night .dr-nm{color:#fff;text-shadow:0 1px 3px rgba(0,0,0,0.8)}
+.drawer.day .dr-nm{color:#0a1622;text-shadow:0 1px 2px rgba(255,255,255,0.6)}
+.dr-close{position:absolute;top:10px;right:16px;font-size:22px;cursor:pointer;z-index:2}
+.drawer.night .dr-close{color:#fff}.drawer.day .dr-close{color:#0a1622}
+/* ===== WIDGET "SONANDO AHORA" (esquina inf. derecha, transparente) ===== */
+.np{position:absolute;right:14px;bottom:92px;display:flex;flex-direction:column;align-items:flex-end;gap:6px;z-index:16;pointer-events:none}
+.np *{pointer-events:auto}
+.np-text{text-align:right;line-height:1.15;cursor:pointer}
+.np-title{font-size:18px;font-weight:bold;letter-spacing:.3px}
+.np-sub{font-size:12px;opacity:0.9;margin-top:2px}
+.np-btns{display:flex;gap:8px}
+.np-b{width:34px;height:34px;border:1.5px solid;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;background:transparent;cursor:pointer}
+.np.day{color:#0a1622}.np.day .np-text{text-shadow:0 1px 2px rgba(255,255,255,0.55)}.np.day .np-b{border-color:rgba(10,22,34,0.65)}
+.np.night{color:#ffffff}.np.night .np-text{text-shadow:0 1px 3px rgba(0,0,0,0.8)}.np.night .np-b{border-color:rgba(255,255,255,0.7)}
 </style>
 </head>
 <body>
@@ -136,6 +160,20 @@ html,body{width:100vw;height:100vh;overflow:hidden;background:#0a1622;font-famil
   </div>
 
   <div class="iconbar" id="iconbar"></div>
+
+  <!-- Widget "sonando ahora": esquina inferior derecha, transparente.
+       Siempre visible ("—" en silencio). Datos via Bridge.getNowPlaying(). -->
+  <div class="np day" id="nowPlaying">
+    <div class="np-text" id="npText">
+      <div class="np-title" id="npTitle">&#8212;</div>
+      <div class="np-sub" id="npSub"></div>
+    </div>
+    <div class="np-btns">
+      <div class="np-b" id="npPrev">&#9198;</div>
+      <div class="np-b" id="npPlay">&#9199;</div>
+      <div class="np-b" id="npNext">&#9197;</div>
+    </div>
+  </div>
 </div>
 
 <!-- Context menu -->
@@ -149,12 +187,6 @@ html,body{width:100vw;height:100vh;overflow:hidden;background:#0a1622;font-famil
 <div class="overlay" id="appPicker">
   <div class="picker-box">
     <div class="picker-title">Seleccionar aplicaci&#243;n</div>
-    <div class="find-radio" id="findRadio">&#x1F4FB; Buscar la radio del estéreo</div>
-    <div class="find-radio" id="dumpInfo">&#x1F9FE; Generar informe del sistema</div>
-    <div class="find-radio" id="factory">&#x1F527; Pantallas de fábrica</div>
-    <div class="find-radio" id="capRadio">&#x1F3AF; Capturar la radio (abrí la radio y volvé)</div>
-    <div class="find-radio" id="openRadio">&#x1F4FB; Abrir la radio (probar)</div>
-    <div class="find-radio" id="exportZip">&#x1F4E6; Exportar launcher de fábrica (para Claude)</div>
     <div class="app-grid" id="appGrid"></div>
     <div class="picker-close" id="appClose">&#x2715; Cancelar</div>
   </div>
@@ -167,6 +199,12 @@ html,body{width:100vw;height:100vh;overflow:hidden;background:#0a1622;font-famil
     <div class="swap-list" id="swapList"></div>
     <div class="picker-close" id="swapClose">&#x2715; Cancelar</div>
   </div>
+</div>
+
+<!-- Cajon propio "Mas apps": grilla 10x4, fondo dia/noche limpio -->
+<div class="drawer day" id="drawer">
+  <div class="dr-close" id="drClose">&#x2715;</div>
+  <div class="drawer-grid" id="drawerGrid"></div>
 </div>
 
 <script>
@@ -215,6 +253,9 @@ var FALLBACK_APPS = [
 
 // -- Default button definitions --
 var DEFAULT_BTNS = [
+  {lbl:"Radio", pkg:"action:cn.yunovo.nxos.activity.action.radio", fixed:true,
+   bg:"linear-gradient(135deg,#e74c3c,#a93226)", border:null,
+   svg:'<svg width="28" height="28" viewBox="0 0 24 24" fill="none"><rect x="2.5" y="8" width="19" height="12" rx="2" stroke="white" stroke-width="1.6"/><line x1="7" y1="8" x2="17" y2="3" stroke="white" stroke-width="1.6" stroke-linecap="round"/><circle cx="16" cy="14" r="3" stroke="white" stroke-width="1.6"/><circle cx="6.5" cy="12" r="1" fill="white"/><circle cx="6.5" cy="16" r="1" fill="white"/></svg>'},
   {lbl:"Boating", pkg:"com.garmin.marine.boating",
    bg:"linear-gradient(135deg,#0099ff,#0055cc)", border:null,
    svg:'<svg width="28" height="28" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="white" stroke-width="1.5" fill="none"/><path d="M6 12 Q12 6 18 12 Q12 18 6 12Z" fill="white"/></svg>'},
@@ -227,16 +268,16 @@ var DEFAULT_BTNS = [
   {lbl:"Disney+", pkg:"com.disney.disneyplus",
    bg:"linear-gradient(135deg,#0063e5,#003b8e)", border:null,
    svg:'<svg width="30" height="26" viewBox="0 0 26 22"><text x="2" y="18" font-size="17" font-family="Arial Black" font-weight="900" fill="white">D+</text></svg>'},
-  {lbl:"Mas apps", pkg:"__LAUNCHER__",
+  {lbl:"Mas apps", pkg:"__LAUNCHER__", fixed:true,
    bg:"rgba(255,255,255,0.1)", border:"1px solid rgba(255,255,255,0.2)",
    svg:'<svg width="26" height="26" viewBox="0 0 22 22" fill="none"><circle cx="5.5" cy="5.5" r="2.5" fill="white" opacity="0.8"/><circle cx="16.5" cy="5.5" r="2.5" fill="white" opacity="0.8"/><circle cx="5.5" cy="16.5" r="2.5" fill="white" opacity="0.8"/><circle cx="16.5" cy="16.5" r="2.5" fill="white" opacity="0.8"/></svg>'},
-  {lbl:"Config", pkg:"com.android.settings",
+  {lbl:"Config", pkg:"com.android.settings", fixed:true,
    bg:"rgba(255,255,255,0.1)", border:"1px solid rgba(255,255,255,0.2)",
-   svg:'<svg width="26" height="26" viewBox="0 0 22 22" fill="none"><circle cx="11" cy="11" r="3.5" stroke="white" stroke-width="1.6" fill="none"/><path d="M11 2v2M11 18v2M2 11h2M18 11h2M4.1 4.1l1.4 1.4M16.5 16.5l1.4 1.4M4.1 17.9l1.4-1.4M16.5 5.5l1.4-1.4" stroke="white" stroke-width="1.4" stroke-linecap="round"/></svg>'},
-  {lbl:"Libre", pkg:"__EMPTY__", empty:true,
-   bg:"transparent", border:"1.5px dashed rgba(255,255,255,0.25)",
-   svg:'<svg width="26" height="26" viewBox="0 0 22 22" fill="none"><circle cx="11" cy="11" r="9" stroke="rgba(255,255,255,0.3)" stroke-width="1" stroke-dasharray="3 3"/><text x="11" y="15" font-size="11" font-family="Arial" text-anchor="middle" fill="rgba(255,255,255,0.35)">?</text></svg>'}
+   svg:'<svg width="26" height="26" viewBox="0 0 22 22" fill="none"><circle cx="11" cy="11" r="3.5" stroke="white" stroke-width="1.6" fill="none"/><path d="M11 2v2M11 18v2M2 11h2M18 11h2M4.1 4.1l1.4 1.4M16.5 16.5l1.4 1.4M4.1 17.9l1.4-1.4M16.5 5.5l1.4-1.4" stroke="white" stroke-width="1.4" stroke-linecap="round"/></svg>'}
 ];
+
+// Los botones fijos (no se cambian ni intercambian): Radio, Mas apps, Config.
+var FIXED = {0:true, 5:true, 6:true};
 
 // -- State --
 var btns = DEFAULT_BTNS.map(function(b,i){ return Object.assign({},b,{id:i}); });
@@ -247,9 +288,11 @@ var DELAY=2*60*1000, SPTHRESH=0.15, LP_MS=2000;
 // Load saved buttons
 (function(){
   try {
-    var s=loadPrefs("jdBtns");
+    var s=loadPrefs("jdBtns2");
     if(s){ var p=JSON.parse(s); if(Array.isArray(p)&&p.length===7) btns=p; }
   } catch(e){}
+  // Los fijos siempre se fuerzan desde el default, pase lo que pase con lo guardado.
+  Object.keys(FIXED).forEach(function(k){ btns[k]=Object.assign({},DEFAULT_BTNS[k],{id:+k}); });
 })();
 
 // -- Render iconbar --
@@ -290,13 +333,14 @@ function renderBar(){
 
 function tapBtn(i){
   var b=btns[i]; if(!b||b.empty) return;
-  if(b.pkg==="__LAUNCHER__"){ openNativeLauncher(); return; }
+  if(b.pkg==="__LAUNCHER__"){ openDrawer(); return; }   // nuestro cajon propio
   if(b.pkg==="__EMPTY__") return;
   launchApp(b.pkg);
 }
 
 // -- Context menu --
 function showCtx(i,x,y){
+  if(FIXED[i]) return;   // Radio / Mas apps / Config no se cambian ni intercambian
   ctxIdx=i;
   var m=document.getElementById("ctxMenu");
   m.style.left=Math.min(x,824)+"px";
@@ -320,87 +364,34 @@ function openAppPicker(i){
   empty.innerHTML='<div class="app-icon" style="background:rgba(255,255,255,0.08)">&#x2715;</div><span>Vaciar</span>';
   empty.addEventListener("click",function(){ clearBtn(picIdx); closeAppPicker(); });
   grid.appendChild(empty);
-  // Built-in firmware sources, read out of the stock launcher theme
-  // (launcher.xml): each is an implicit action the firmware routes internally.
-  // These are what the home's Radio/BT cards actually fire.
-  var FIRMWARE = [
-    {name:"Radio FM", pkg:"action:cn.yunovo.nxos.activity.action.radio", icon:"\uD83D\uDCFB"},
-    {name:"Bluetooth", pkg:"action:cn.yunovo.nxos.activity.action.bt", icon:"\uD83D\uDCF1"},
-    {name:"Video", pkg:"action:cn.yunovo.nxos.intent.action.MEDIA_BROWSER", icon:"\uD83C\uDFAC"}
-  ];
-  FIRMWARE.forEach(function(app){
-    var el=document.createElement("div");
-    el.className="app-item";
-    el.innerHTML='<div class="app-icon" style="background:rgba(125,212,240,0.18)">'
-      +app.icon+'</div><span>'+app.name+'</span>';
-    el.addEventListener("click",function(){ assignApp(picIdx,app); closeAppPicker(); });
-    grid.appendChild(el);
-  });
+  // Solo apps: lista de apps normales instaladas.
   getInstalledApps().forEach(function(app){
+    if(app.pkg.indexOf("unlaunchable:")===0) return;   // no listar servicios sin pantalla
     var el=document.createElement("div");
     el.className="app-item";
-    var unlaunchable=app.pkg.indexOf("unlaunchable:")===0;
-    if(unlaunchable) el.style.opacity="0.4";
     var ih=app.iconUrl?'<img src="'+app.iconUrl+'" width="30" height="30" style="border-radius:6px">':(app.icon||"&#x1F4F1;");
-    el.innerHTML='<div class="app-icon" style="background:rgba(255,255,255,0.08)">'+ih+'</div><span>'+app.name+(unlaunchable?" ⚠":"")+'</span>';
-    el.addEventListener("click",function(){
-      if(unlaunchable){ alert("Esta app no tiene ninguna pantalla iniciable detectable:\n\n"+app.pkg.slice("unlaunchable:".length)+"\n\nMandale este nombre a Claude."); return; }
-      assignApp(picIdx,app); closeAppPicker();
-    });
+    el.innerHTML='<div class="app-icon" style="background:rgba(255,255,255,0.08)">'+ih+'</div><span>'+app.name+'</span>';
+    el.addEventListener("click",function(){ assignApp(picIdx,app); closeAppPicker(); });
     grid.appendChild(el);
   });
   document.getElementById("appPicker").classList.add("open");
 }
 function closeAppPicker(){ document.getElementById("appPicker").classList.remove("open"); }
 document.getElementById("appClose").addEventListener("click",closeAppPicker);
-// The radio is a firmware-internal screen with no launcher entry, so it can
-// only be found by ranking every activity on the device -- see findRadio() on
-// the Android side. Confirming one pins it to the top of this list.
-document.getElementById("findRadio").addEventListener("click",function(){
-  if(Bridge&&Bridge.findRadio) Bridge.findRadio();
-  else alert("Esta función necesita la app instalada en el estéreo.");
-});
-// Dumps what the firmware actually contains to Downloads, so the radio can be
-// read off the report instead of guessed at from the outside.
-document.getElementById("dumpInfo").addEventListener("click",function(){
-  if(Bridge&&Bridge.dumpSystemInfo) Bridge.dumpSystemInfo();
-  else alert("Esta función necesita la app instalada en el estéreo.");
-});
-// Exported firmware screens, reachable without the factory-menu password and
-// not listed by the picker, which shows only one activity per package.
-document.getElementById("factory").addEventListener("click",function(){
-  if(Bridge&&Bridge.openFactoryScreens) Bridge.openFactoryScreens();
-  else alert("Esta función necesita la app instalada en el estéreo.");
-});
-// Reads the recent foreground history to name the activity the stock Radio
-// button opened -- the one thing static inspection could not reveal.
-document.getElementById("capRadio").addEventListener("click",function(){
-  if(Bridge&&Bridge.captureRadio) Bridge.captureRadio();
-  else alert("Esta función necesita la app instalada en el estéreo.");
-});
-// The radio is a source inside cn.yunovo.nxos.player (the capture proved it);
-// this tries the ways the theme's Radio card might ask that app for FM.
-document.getElementById("openRadio").addEventListener("click",function(){
-  if(Bridge&&Bridge.openRadioSource) Bridge.openRadioSource();
-  else alert("Esta función necesita la app instalada en el estéreo.");
-});
-// Copies the stock launcher zip out so its Radio-card intent can be read from
-// the compiled package -- the definitive source, no more guessing.
-document.getElementById("exportZip").addEventListener("click",function(){
-  if(Bridge&&Bridge.exportLauncherZip) Bridge.exportLauncherZip();
-  else alert("Esta función necesita la app instalada en el estéreo.");
-});
-
 function assignApp(i,app){
+  if(FIXED[i]) return;
   btns[i]={id:i,lbl:app.name,pkg:app.pkg,empty:false,
     bg:"rgba(255,255,255,0.12)",border:null,
     iconUrl:app.iconUrl||null,
     svg:app.iconUrl?"":'<span style="font-size:20px">'+(app.icon||"&#x1F4F1;")+"</span>"};
-  savePrefs("jdBtns",btns); renderBar();
+  savePrefs("jdBtns2",btns); renderBar();
 }
 function clearBtn(i){
-  btns[i]=Object.assign({},DEFAULT_BTNS[6],{id:i});
-  savePrefs("jdBtns",btns); renderBar();
+  if(FIXED[i]) return;
+  btns[i]={id:i,lbl:"Libre",pkg:"__EMPTY__",empty:true,bg:"transparent",
+    border:"1.5px dashed rgba(255,255,255,0.25)",
+    svg:'<svg width="26" height="26" viewBox="0 0 22 22" fill="none"><circle cx="11" cy="11" r="9" stroke="rgba(255,255,255,0.3)" stroke-width="1" stroke-dasharray="3 3"/><text x="11" y="15" font-size="11" font-family="Arial" text-anchor="middle" fill="rgba(255,255,255,0.35)">?</text></svg>'};
+  savePrefs("jdBtns2",btns); renderBar();
 }
 
 // -- Swap picker --
@@ -410,7 +401,7 @@ function openSwapPicker(i){
   var list=document.getElementById("swapList");
   list.innerHTML="";
   btns.forEach(function(b,j){
-    if(j===i) return;
+    if(j===i||FIXED[j]) return;
     var el=document.createElement("div");
     el.className="swap-item";
     el.innerHTML='<div class="swap-num">'+(j+1)+'</div><span>'+b.lbl+'</span>';
@@ -423,8 +414,9 @@ function closeSwapPicker(){ document.getElementById("swapPicker").classList.remo
 document.getElementById("swapClose").addEventListener("click",closeSwapPicker);
 
 function swapBtns(a,b){
+  if(FIXED[a]||FIXED[b]) return;
   var tmp=btns[a]; btns[a]=btns[b]; btns[b]=tmp;
-  savePrefs("jdBtns",btns); renderBar();
+  savePrefs("jdBtns2",btns); renderBar();
 }
 
 // -- Mode engine --
@@ -432,6 +424,7 @@ function applyMode(){
   var mode=(isNight?"n":"d")+(isNavigating?"n":"q");
   if(mode===curMode) return;
   curMode=mode;
+  applyDayNightSkin();
   var screen=document.getElementById("screen");
   var wrap=document.getElementById("barcoWrap");
   var bg=document.getElementById("bgImg");
@@ -547,10 +540,116 @@ function tick(){
 }
 
 
+// ===== Piel dia/noche del widget y del cajon =====
+function applyDayNightSkin(){
+  var np=document.getElementById("nowPlaying");
+  if(np){ np.className="np "+(isNight?"night":"day"); }
+  var dr=document.getElementById("drawer");
+  if(dr){ dr.classList.toggle("night",isNight); dr.classList.toggle("day",!isNight); }
+}
+
+// ===== Iconos reales de las apps precargadas (y futuras actualizaciones) =====
+function resolveRealIcons(){
+  try{
+    var map={};
+    getInstalledApps().forEach(function(a){ if(a.pkg && a.iconUrl) map[a.pkg]=a.iconUrl; });
+    var changed=false;
+    btns.forEach(function(b){
+      if(!b.pkg) return;
+      if(b.pkg.indexOf("action:")===0||b.pkg==="__LAUNCHER__"||b.pkg==="__EMPTY__") return;
+      if(map[b.pkg]){ b.iconUrl=map[b.pkg]; b.svg=""; changed=true; }
+    });
+    if(changed) renderBar();
+  }catch(e){}
+}
+
+// ===== Cajon propio "Mas apps" (10x4, fondo dia/noche limpio) =====
+function openDrawer(){
+  var dr=document.getElementById("drawer");
+  dr.style.backgroundImage="url('"+(isNight?"fondo_noche.png":"fondo_dia.png")+"')";
+  applyDayNightSkin();
+  renderDrawer();
+  dr.classList.add("open");
+}
+function closeDrawer(){ document.getElementById("drawer").classList.remove("open"); }
+function renderDrawer(){
+  var g=document.getElementById("drawerGrid");
+  g.innerHTML="";
+  // Casilleros especiales primero.
+  addDrawerItem(g,"&#8862;","Escritorio\nsistema",function(){ openNativeLauncher(); },true);
+  addDrawerItem(g,"&#8962;","Poner como\ninicio",function(){ if(Bridge&&Bridge.openHomeSettings)Bridge.openHomeSettings(); },true);
+  // Apps normales.
+  getInstalledApps().forEach(function(app){
+    if(app.pkg.indexOf("unlaunchable:")===0) return;
+    var ih=app.iconUrl?'<img src="'+app.iconUrl+'" width="46" height="46" style="border-radius:11px">':'<span>'+(app.icon||"&#x1F4F1;")+'</span>';
+    addDrawerItem(g,ih,app.name,function(){ launchApp(app.pkg); closeDrawer(); },false);
+  });
+}
+function addDrawerItem(g,iconHtml,name,onclick,special){
+  var el=document.createElement("div");
+  el.className="dr-item"+(special?" dr-special":"");
+  var nm=name.replace(/\n/g,"<br>");
+  el.innerHTML='<div class="dr-ic">'+iconHtml+'</div><div class="dr-nm">'+nm+'</div>';
+  el.addEventListener("click",onclick);
+  g.appendChild(el);
+}
+
+// ===== Widget "sonando ahora" =====
+function pollNowPlaying(){
+  var title=document.getElementById("npTitle");
+  var sub=document.getElementById("npSub");
+  var play=document.getElementById("npPlay");
+  if(!Bridge||!Bridge.getNowPlaying){ title.innerHTML="&#8212;"; sub.textContent=""; return; }
+  var d={};
+  try{ d=JSON.parse(Bridge.getNowPlaying()); }catch(e){ return; }
+  if(!d.access){
+    title.textContent="Activar música";
+    sub.textContent="tocá acá";
+    return;
+  }
+  if(d.title){
+    title.textContent=d.title;
+    var parts=[]; if(d.artist)parts.push(d.artist); if(d.app)parts.push(d.app);
+    sub.textContent=parts.join(" · ");
+  }else{
+    title.innerHTML="&#8212;";
+    sub.textContent=d.app||"";
+  }
+  play.innerHTML=d.playing?"&#9208;":"&#9199;";   // pausa : play
+}
+
+// ===== Fuentes del equipo (armado pero DESCONECTADO, para uso futuro) =====
+// Acciones/actividades verificadas exportadas en este equipo. No estan
+// enganchadas a ninguna UI todavia; se llaman con launchApp(pkg).
+var FUENTES_EQUIPO = [
+  {name:"Radio FM",     pkg:"action:cn.yunovo.nxos.activity.action.radio"},
+  {name:"Bluetooth",    pkg:"action:cn.yunovo.nxos.activity.action.bt"},
+  {name:"Multimedia",   pkg:"action:cn.yunovo.nxos.intent.action.MEDIA_BROWSER"},
+  {name:"AUX",          pkg:"cn.yunovo.car.camera/cn.yunovo.car.camera.act.ActAux"},
+  {name:"Entrada video",pkg:"cn.yunovo.car.camera/cn.yunovo.car.camera.act.ActFront"},
+  {name:"Entrada AV",   pkg:"cn.yunovo.car.camera/cn.yunovo.car.camera.act.ActFront2"},
+  {name:"Panoramica 360",pkg:"cn.yunovo.car.camera/cn.yunovo.car.camera.act.ActAvm"},
+  {name:"Ajustes sonido",pkg:"cn.yunovo.nxos.audiofx"},
+  {name:"Album",        pkg:"cn.yunovo.nxos.mediaui"}
+];
+
 function init(){
   renderBar();
+  resolveRealIcons();
   updateDayNightByTime();
   applyMode();
+  applyDayNightSkin();
+  // Cajon
+  document.getElementById("drClose").addEventListener("click",closeDrawer);
+  // Widget musica: botones + polling
+  document.getElementById("npPrev").addEventListener("click",function(){ if(Bridge&&Bridge.mediaControl)Bridge.mediaControl("prev"); });
+  document.getElementById("npPlay").addEventListener("click",function(){ if(Bridge&&Bridge.mediaControl)Bridge.mediaControl("play"); setTimeout(pollNowPlaying,300); });
+  document.getElementById("npNext").addEventListener("click",function(){ if(Bridge&&Bridge.mediaControl)Bridge.mediaControl("next"); setTimeout(pollNowPlaying,300); });
+  document.getElementById("npText").addEventListener("click",function(){
+    var d={}; try{ d=JSON.parse(Bridge.getNowPlaying()); }catch(e){}
+    if(d && d.access===false && Bridge.openMediaAccess) Bridge.openMediaAccess();
+  });
+  setInterval(pollNowPlaying,1500); pollNowPlaying();
   if(navigator.geolocation){
     navigator.geolocation.watchPosition(onGpsPos,onGpsErr,{
       enableHighAccuracy:true, maximumAge:5000, timeout:10000
