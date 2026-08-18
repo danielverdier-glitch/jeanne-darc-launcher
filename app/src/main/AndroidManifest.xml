@@ -11,6 +11,14 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
 
+    <!-- The firmware's own providers named these when they refused us. Asking
+         for them costs nothing if they turn out to be signature-level (the
+         system simply will not grant them), and gets us the configuration
+         database if they are not. -->
+    <uses-permission android:name="cn.yunovo.config.permission.YUNOVO_READ" />
+    <uses-permission android:name="cn.yunovo.config.permission.YUNOVO_WRITE" />
+    <uses-permission android:name="com.yunovo.permission.READ_BLUETOOTH_STATE" />
+
     <queries>
         <intent>
             <action android:name="android.intent.action.MAIN" />

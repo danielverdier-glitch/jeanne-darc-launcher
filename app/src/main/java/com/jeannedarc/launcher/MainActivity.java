@@ -739,6 +739,16 @@ public class MainActivity extends Activity {
             // the MCU. So the way in, if there is one, is not a component but
             // whatever the firmware's own providers expose -- these are its
             // configuration and car-service databases, and they are exported.
+            b.append("\n== PERMISOS DEL FIRMWARE QUE PEDIMOS ==\n");
+            String[] wanted = {"cn.yunovo.config.permission.YUNOVO_READ",
+                               "cn.yunovo.config.permission.YUNOVO_WRITE",
+                               "com.yunovo.permission.READ_BLUETOOTH_STATE"};
+            for (String w : wanted) {
+                b.append(w).append(" -> ")
+                 .append(checkSelfPermission(w) == PackageManager.PERMISSION_GRANTED
+                         ? "CONCEDIDO" : "denegado").append('\n');
+            }
+
             b.append("\n== CONTENT PROVIDERS DEL FIRMWARE ==\n");
             String[] auths = {"cn.yunovo.config", "cn.yunovo.nxos.carservice.provider",
                               "cn.yunovo.nxos.bt", "cn.yunovo.nxos.platformservice",
@@ -781,6 +791,7 @@ public class MainActivity extends Activity {
                     pi = pm.getPackageInfo(pkg, PackageManager.GET_ACTIVITIES
                         | PackageManager.GET_SERVICES | PackageManager.GET_RECEIVERS
                         | PackageManager.GET_PROVIDERS
+                        | PackageManager.GET_PERMISSIONS
                         | PackageManager.MATCH_DISABLED_COMPONENTS);
                 } catch (Exception e) { b.append("  (no legible)\n"); continue; }
 
@@ -815,6 +826,20 @@ public class MainActivity extends Activity {
                 if (pi.receivers != null) for (android.content.pm.ActivityInfo r : pi.receivers) {
                     b.append("  RCV ").append(r.name)
                      .append(r.exported ? " exported" : " private").append('\n');
+                }
+                // Protection level decides whether a permission the firmware
+                // guards its data with is one we can simply ask for, or one
+                // only the OEM's signing key can obtain.
+                if (pi.permissions != null) {
+                    for (android.content.pm.PermissionInfo pe : pi.permissions) {
+                        int base = pe.protectionLevel & 0xf;
+                        String lvl = base == 0 ? "normal" : base == 1 ? "dangerous"
+                                   : base == 2 ? "signature" : base == 3 ? "signatureOrSystem"
+                                   : "nivel:" + base;
+                        b.append("  PERM ").append(pe.name).append(' ').append(lvl)
+                         .append(" (raw=0x").append(Integer.toHexString(pe.protectionLevel))
+                         .append(")\n");
+                    }
                 }
                 if (pi.providers != null) for (android.content.pm.ProviderInfo pr : pi.providers) {
                     b.append("  PRV ").append(pr.name)
