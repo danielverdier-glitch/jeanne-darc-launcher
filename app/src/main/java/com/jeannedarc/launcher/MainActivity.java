@@ -882,6 +882,18 @@ public class MainActivity extends Activity {
                 dumpPath(b, new java.io.File(root, nm), 0);
             }
 
+            // The home is a launcher theme (skin.path=/custom/etc/nxos/theme/...)
+            // and its Radio card came down to cn.yunovo.nxos.player. The card's
+            // intent is defined in the theme's own config files, so read the
+            // theme tree and the firmware's config partitions directly.
+            b.append("\n== TEMA DEL HOME Y CONFIG DEL FIRMWARE (rutas absolutas) ==\n");
+            String[] abs = {"/custom/etc/nxos/theme/20363/res", "/custom/etc/nxos/theme",
+                            "/custom/etc/nxos", "/custom/etc", "/system/etc/nxos",
+                            "/data/nxos", "/custom/app"};
+            for (String a : abs) {
+                dumpPath(b, new java.io.File(a), 0);
+            }
+
             // There is no radio activity anywhere on this unit: the stock home
             // is a launcher theme and the radio is a view inside it, driven by
             // the MCU. So the way in, if there is one, is not a component but
@@ -1166,6 +1178,67 @@ public class MainActivity extends Activity {
             } finally {
                 if (c != null) c.close();
             }
+        }
+
+        /**
+         * Open the firmware media app, where the radio lives as a source.
+         *
+         * The foreground capture showed the home's Radio button bringing
+         * cn.yunovo.nxos.player.MainActivity to the front, so the radio is a
+         * source inside that app rather than an app of its own. It is exported,
+         * so we can start it. Plain start lands on whatever source was last
+         * used; the extra variants below are guesses at how the theme's Radio
+         * card asks for FM specifically, offered one at a time until one lands
+         * on the radio -- a small space now that the app is known.
+         */
+        @JavascriptInterface
+        public void openRadioSource() {
+            final String pkg = "cn.yunovo.nxos.player";
+            final String cls = "cn.yunovo.nxos.player.MainActivity";
+            // {label, extraKey, extraType, extraValue, action}. A null key means
+            // no extra; a null action means ACTION_MAIN.
+            final String[][] tries = {
+                {"Multimedia tal cual (última fuente)", null, null, null, null},
+                {"extra source=fm (texto)", "source", "s", "fm", null},
+                {"extra source=radio (texto)", "source", "s", "radio", null},
+                {"extra source=1 (número)", "source", "i", "1", null},
+                {"extra source=2 (número)", "source", "i", "2", null},
+                {"extra source=0 (número)", "source", "i", "0", null},
+                {"extra mode=fm", "mode", "s", "fm", null},
+                {"extra type=radio", "type", "s", "radio", null},
+                {"extra openType=fm", "openType", "s", "fm", null},
+                {"extra media_type=radio", "media_type", "s", "radio", null},
+                {"acción ...player.FM", null, null, null, "cn.yunovo.nxos.player.FM"},
+                {"acción ...player.RADIO", null, null, null, "cn.yunovo.nxos.player.RADIO"},
+                {"acción ...action.FM", null, null, null, "cn.yunovo.nxos.player.action.FM"},
+                {"acción ...action.RADIO", null, null, null, "cn.yunovo.nxos.player.action.RADIO"},
+            };
+            String[] names = new String[tries.length];
+            for (int i = 0; i < tries.length; i++) names[i] = tries[i][0];
+
+            runOnUiThread(() -> new AlertDialog.Builder(MainActivity.this)
+                .setTitle("Abrir la radio (probá una por una)")
+                .setItems(names, (d, which) -> {
+                    String[] t = tries[which];
+                    try {
+                        Intent in = new Intent(t[4] == null ? Intent.ACTION_MAIN : t[4]);
+                        in.setClassName(pkg, cls);
+                        in.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        if (t[1] != null) {
+                            if ("i".equals(t[2])) in.putExtra(t[1], Integer.parseInt(t[3]));
+                            else in.putExtra(t[1], t[3]);
+                        }
+                        startActivity(in);
+                        // Remember the last one tried, so a working combo can be
+                        // pinned to a button afterwards without guessing again.
+                        savePrefs("lastRadioTry", String.valueOf(which));
+                    } catch (Exception e) {
+                        android.widget.Toast.makeText(MainActivity.this,
+                            "Falló: " + e, android.widget.Toast.LENGTH_LONG).show();
+                    }
+                })
+                .setNegativeButton("Cancelar", null)
+                .show());
         }
 
         /**
