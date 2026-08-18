@@ -1,0 +1,347 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<layout isUseWallpaper="false" skinFrameVerCode="9">
+    <group background="launcher/main_bg.png" h="-1" id="launcher" w="-1" x="0" y="0">
+        <linear w="106" h="-1" y="50" orientation="vertical" background="#0C1519">
+            <image h="178" w="-1" y="8" src="#n:launcher/setting_n.png;#p:launcher/setting_p.png" scaleType="fitXY" >
+                <trigger>
+                    <action name="cn.yunovo.car.settings/cn.yunovo.car.settings.SettingsListActivity" type="activity" />
+                </trigger>
+            </image>
+            <image h="178" w="-1"  src="#n:launcher/application_n.png;#p:launcher/application_p.png" scaleType="fitXY">
+                <trigger>
+                    <action name="com.car.launcher.allapps" type="activity" />
+                </trigger>
+            </image>
+            <navModule h="178" w="-1"  background="#n:launcher/nav_n.png;#p:launcher/nav_p.png"  scaleType="fitXY">
+                <trigger>
+                    <action name="com.google.android.apps.maps/com.google.android.maps.MapsActivity" type="activity" />
+                    <action name="android.intent.action.MAIN" type="action" />
+                </trigger>
+            </navModule>
+        </linear>
+        <slide card_h="405" card_w="272" col="3" h="405" indicator="indicator" row="1" supportDrag="true" type="page" w="-1" x="106" y="120">
+            <navModule background="launcher/map_card.png">
+                <text color="#FFFFFF" h="-2" id="nav_speed" layout_gravity="center_horizontal" size="48" text="0" w="-2" y="33" />
+                <text color="#FFFFFF" h="-2" id="nav_speed_unit"  size="24" text="km/h" w="-2"  y="98" layout_gravity="center_horizontal" />
+                <trigger>
+                    <action name="com.google.android.apps.maps/com.google.android.maps.MapsActivity" type="activity" />
+                    <action name="android.intent.action.MAIN" type="action" />
+                </trigger>
+            </navModule>
+            <musicModule background="launcher/music_card.png" supportFm="true">
+                <linear h="67" layout_gravity="center_horizontal" orientation="vertical" w="240" y="270">
+                    <image weight="1" />
+                    <!-- 歌曲名字 -->
+                    <text color="#000000" ellipsize="marquee" id="title"
+                        layout_gravity="center_horizontal" singleLine="true" size="28"
+                        text="@string:song_name" />
+                    <!-- 歌手名字 -->
+                    <text color="#b3000000" ellipsize="end" id="author"
+                        layout_gravity="center_horizontal" singleLine="true" size="16"
+                        text="@string:singer"/>
+                    <image weight="1" />
+                </linear>
+
+                <!-- 开始暂停按钮 -->
+                <image h="56" id="play" padding="10,10,10,10" scaleType="fitXY" src="launcher/btn_play.png" visibility="gone" w="56"  y="340" layout_gravity="center_horizontal" />
+                <!-- 开始暂停按钮 -->
+                <image h="56" id="pause" padding="10,10,10,10" scaleType="fitXY" src="launcher/btn_pause.png" visibility="gone" w="56"  y="340" layout_gravity="center_horizontal" />
+                <!-- 上一曲按钮 -->
+                <image h="45" id="prev" padding="10,10,10,10" scaleType="fitXY" src="#n:launcher/btn_pre_n.png;#p:launcher/btn_pre_p.png" w="45" x="37" y="345" />
+                <!-- 下一曲按钮 -->
+                <image h="45" id="next" padding="10,10,10,10" scaleType="fitXY" src="#n:launcher/btn_next_n.png;#p:launcher/btn_next_p.png" w="45" x="191" y="345" />
+            </musicModule>
+
+            <group background="launcher/bt_card.png">
+                <text y="316" color="#000000" layout_gravity="center_horizontal" size="28" text="@string:bt_phone" gravity="center_horizontal"/>
+                <trigger>
+                    <action name="cn.yunovo.nxos.activity.action.bt" type="activity" />
+                </trigger>
+            </group>
+
+            <group background="launcher/radio_card.png">
+                <text y="316" color="#000000" layout_gravity="center_horizontal" size="28" text="@string:radio" gravity="center_horizontal"/>
+                <trigger>
+                    <action name="cn.yunovo.nxos.activity.action.radio" type="activity" />
+                </trigger>
+            </group>
+
+
+            <group background="launcher/settings_card.png">
+                <text y="316" color="#000000" layout_gravity="center_horizontal" size="28" text="@string:settings" gravity="center_horizontal"/>
+                <trigger>
+                    <action name="cn.yunovo.car.settings/cn.yunovo.car.settings.SettingsListActivity" type="activity" />
+                </trigger>
+            </group>
+
+            <group background="launcher/video_card.png">
+                <text y="316" color="#000000" layout_gravity="center_horizontal" size="28" text="@string:video" gravity="center_horizontal"/>
+                <trigger>
+                    <action name="cn.yunovo.nxos.intent.action.MEDIA_BROWSER" type="activity" />
+                </trigger>
+            </group>
+        </slide>
+        <group w="-1" h="-2" x="106">
+            <indicator active="launcher/pageindicator_n.png" h="-2" id="indicator" inactive="launcher/pageindicator_p.png" layout_gravity="center_horizontal" w="-2" y="560" />
+        </group>
+
+
+    </group>
+
+    <applist background="#313840" h="600" id="applist" w="1024" x="0">
+        <slide card_h="214" card_w="190" col="5" h="560" id="apps" indicator="page_indicator" padding="0,0,0,74" row="2" w="1020" x="2" y="80">
+            <icon c_h="105" c_w="105" color="#f3f3f3" drawablePadding="5" gravity="center_horizontal" h="-2"
+                icon_mask="launcher/applist/icons/applist_icon_mask.png"  icon_h="130"
+                icon_w="130" id="app_icon" singleLine="true" size="25" w="-2" />
+        </slide>
+        <indicator h="-2" id="page_indicator" layout_gravity="center_horizontal" w="-2" y="545" active="launcher/pageindicator_n.png" inactive="launcher/pageindicator_p.png"/>
+    </applist>
+    <group background="#ffffff" h="240" id="uninstall_dialog" w="472">
+        <text color="#9F9FA1" gravity="center_horizontal" h="60" id="title" size="24" text="卸载应用"
+            w="-1" y="12" />
+        <text color="#9F9FA1" gravity="center" h="47" id="content" layout_gravity="center_horizontal" size="24"
+            text="卸载 %s?" w="392" y="92" />
+        <text background="#C5C5C5" h="1" w="-1" x="0" y="169" />
+        <text background="#ffffff" color="#9F9FA1" gravity="center" h="70" id="cancel" size="24" text="取消"
+            w="235" x="0" y="170" />
+        <text background="#ffffff" color="#9F9FA1" gravity="center" h="70" id="submit" size="24" text="确定"
+            w="236" x="236" y="170" />
+        <text background="#C5C5C5" h="70" w="1" x="235" y="170" />
+    </group>
+    <strings language="zh" country="TW">
+        <string name="singer" value="歌手" />
+        <string name="song_name" value="歌曲名" />
+        <string name="car_manager" value="車管家" />
+        <string name="bt_phone" value="藍牙電話" />
+        <string name="map" value="地圖" />
+        <string name="music" value="音樂" />
+        <string name="radio" value="收音機" />
+        <string name="video" value="視頻" />
+        <string name="file_manager" value="文件管理" />
+        <string name="week" value="['星期日','星期一','星期二','星期三','星期四','星期五','星期六']" />
+        <string name="ampm" value="['上午','下午']" />
+        <string name="settings" value="設置"/>
+        <string name="picture" value="圖片"/>
+        <string name="apps" value="應用"/>
+    </strings>
+    <strings language="zh" country="HK">
+        <string name="singer" value="歌手" />
+        <string name="song_name" value="歌曲名" />
+        <string name="car_manager" value="車管家" />
+        <string name="bt_phone" value="藍牙電話" />
+        <string name="map" value="地圖" />
+        <string name="music" value="音樂" />
+        <string name="radio" value="收音機" />
+        <string name="video" value="視頻" />
+        <string name="file_manager" value="文件管理" />
+        <string name="week" value="['星期日','星期一','星期二','星期三','星期四','星期五','星期六']" />
+        <string name="ampm" value="['上午','下午']" />
+        <string name="settings" value="設置"/>
+        <string name="picture" value="圖片"/>
+        <string name="apps" value="應用"/>
+    </strings>
+    <strings language="zh" country="MO">
+        <string name="singer" value="歌手" />
+        <string name="song_name" value="歌曲名" />
+        <string name="car_manager" value="車管家" />
+        <string name="bt_phone" value="藍牙電話" />
+        <string name="map" value="地圖" />
+        <string name="music" value="音樂" />
+        <string name="radio" value="收音機" />
+        <string name="video" value="視頻" />
+        <string name="file_manager" value="文件管理" />
+        <string name="week" value="['星期日','星期一','星期二','星期三','星期四','星期五','星期六']" />
+        <string name="ampm" value="['上午','下午']" />
+        <string name="settings" value="設置"/>
+        <string name="picture" value="圖片"/>
+        <string name="apps" value="應用"/>
+    </strings>
+    <strings language="zh">
+        <string name="singer" value="歌手" />
+        <string name="song_name" value="歌曲名" />
+        <string name="car_manager" value="车管家" />
+        <string name="bt_phone" value="蓝牙电话" />
+        <string name="map" value="地图" />
+        <string name="music" value="音乐" />
+        <string name="radio" value="收音机" />
+        <string name="video" value="视频" />
+        <string name="file_manager" value="文件管理" />
+        <string name="week" value="['星期日','星期一','星期二','星期三','星期四','星期五','星期六']" />
+        <string name="ampm" value="['上午','下午']" />
+        <string name="settings" value="设置"/>
+        <string name="picture" value="图片"/>
+        <string name="apps" value="应用"/>
+    </strings>
+    <strings language="en">
+        <string name="singer" value="Singer" />
+        <string name="song_name" value="Song name" />
+        <string name="car_manager" value="Car Manager" />
+        <string name="bt_phone" value="BT Phone" />
+        <string name="map" value="Map" />
+        <string name="music" value="Music" />
+        <string name="radio" value="Radio" />
+        <string name="video" value="Video" />
+        <string name="file_manager" value="File Management" />
+        <string name="week" value="['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']" />
+        <string name="ampm" value="['AM','PM']" />
+        <string name="settings" value="Settings"/>
+        <string name="picture" value="Picture"/>
+        <string name="apps" value="Apps"/>
+    </strings>
+    <strings language="ru">
+        <string name="singer" value="Певец" />
+        <string name="song_name" value="Название песни" />
+        <string name="car_manager" value="Экономка" />
+        <string name="bt_phone" value="Блютуз телефон " />
+        <string name="map" value="Карта" />
+        <string name="music" value="Музыка" />
+        <string name="radio" value="Радио" />
+        <string name="video" value="Видео" />
+        <string name="file_manager" value="Управление файлами" />
+        <string name="week" value="['Воскресенье','Понедельник','Вторник','Среда','Четверг','Пятница','Суббота']" />
+        <string name="ampm" value="['Утро','После полудня']" />
+        <string name="settings" value="Настройки"/>
+        <string name="picture" value="Рисунок"/>
+        <string name="apps" value="Применение"/>
+    </strings>
+    <strings language="vi">
+        <string name="singer" value="Ca sỹ" />
+        <string name="song_name" value="Tên bài hát" />
+        <string name="car_manager" value="Car Manager" />
+        <string name="bt_phone" value="Điện thoại BT" />
+        <string name="map" value="Bản đồ" />
+        <string name="music" value="Âm nhạc" />
+        <string name="radio" value="Đài" />
+        <string name="video" value="Video" />
+        <string name="file_manager" value="Quản lý tập tin" />
+        <string name="week" value="['Chủ nhật','Thứ hai','Thứ ba','Thứ Tư','Thứ năm','Thứ sáu','Thứ bảy']" />
+        <string name="ampm" value="['Buổi sáng','Buổi chiều']" />
+        <string name="settings" value="Settings"/>
+        <string name="picture" value="Hình ảnh"/>
+        <string name="apps" value="Ứng dụng"/>
+    </strings>
+    <!--西班牙-->
+    <strings language="es">
+        <string name="singer" value="Cantante" />
+        <string name="song_name" value="Nombre de la cancion" />
+        <string name="car_manager" value="Car Manager" />
+        <string name="bt_phone" value="Telefono BT" />
+        <string name="map" value="Mapa" />
+        <string name="music" value="Música" />
+        <string name="radio" value="Radio" />
+        <string name="video" value="Video" />
+        <string name="file_manager" value="Gestión de archivos" />
+        <string name="week" value="['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado']" />
+        <string name="ampm" value="['Mañana','Tarde']" />
+        <string name="settings" value="Configurar"/>
+        <string name="picture" value="Imagen"/>
+        <string name="apps" value="Aplicación"/>
+    </strings>
+    <!--葡萄牙-->
+    <strings language="pt">
+        <string name="singer" value="Cantor" />
+        <string name="song_name" value="Nome da música" />
+        <string name="car_manager" value="Car Manager" />
+        <string name="bt_phone" value="Telefone BT" />
+        <string name="map" value="Mapa" />
+        <string name="music" value="Música" />
+        <string name="radio" value="Rádio" />
+        <string name="video" value="Vídeo" />
+        <string name="file_manager" value="Gestão de ficheiros" />
+        <string name="week" value="['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado']" />
+        <string name="ampm" value="['Manhã','Tarde']" />
+        <string name="settings" value="Configurar"/>
+        <string name="picture" value="Foto"/>
+        <string name="apps" value="Aplicação"/>
+    </strings>
+    <strings language="ar">
+        <string name="singer" value="مغني" />
+        <string name="song_name" value="اسم الأغنية" />
+        <string name="car_manager" value="الأمان" />
+        <string name="bt_phone" value="هاتف بلوتوث" />
+        <string name="map" value="الخريطة" />
+        <string name="music" value="موسيقى" />
+        <string name="radio" value="مذياع" />
+        <string name="video" value="فيديو" />
+        <string name="file_manager" value="إدارة الملف" />
+        <string name="week" value="['الأحد','الاثنين','يوم الثلاثاء','الأربعاء','يوم الخميس','جمعة','السبت']"/>
+        <string name="ampm" value="['صباح','بعد الظهر']" />
+        <string name="settings" value="إعدادات"/>
+        <string name="picture" value="صورة"/>
+        <string name="apps" value="تطبيق"/>
+    </strings>
+    <!--马来语-->
+    <strings language="ms">
+        <string name="singer" value="Penyanyi" />
+        <string name="song_name" value="Nama lagu" />
+        <string name="car_manager" value="Steward kereta" />
+        <string name="bt_phone" value="BT Phone" />
+        <string name="map" value="Peta" />
+        <string name="music" value="Muzik" />
+        <string name="radio" value="Radio" />
+        <string name="video" value="Video" />
+        <string name="file_manager" value="Pengurusan file" />
+        <string name="week" value="['Ahad', 'Isnin', 'Selasa', 'Rabu', 'Khamis', 'Jumaat', 'Sabtu']" />
+        <string name="ampm" value="['Am','Pm']" />
+        <string name="settings" value="Settings"/>
+        <string name="picture" value="Gambar"/>
+        <string name="apps" value="Aplikasi"/>
+        <string name="theme" value="Tema" />
+    </strings>
+
+    <!--泰语-->
+    <strings language="th">
+        <string name="singer" value="นักร้อง" />
+        <string name="song_name" value="ชื่อเพลง" />
+        <string name="car_manager" value="สจ๊วตรถ" />
+        <string name="bt_phone" value="โทรศัพท์" />
+        <string name="map" value="แผนที่" />
+        <string name="music" value="ดนตรี" />
+        <string name="radio" value="วิทยุ" />
+        <string name="video" value="วีดีโอ" />
+        <string name="file_manager" value="การจัดการไฟล์" />
+        <string name="week" value="['วันอาทิตย์','วันจันทร์','วันอังคาร','วันพุธ','วันพฤหัสบดี','วันศุกร์','วันเสาร์']" />
+        <string name="ampm" value="['เช้า','ตอนบ่าย']" />
+        <string name="settings" value="ตั้งค่า"/>
+        <string name="picture" value="รูปภาพ"/>
+        <string name="apps" value="แอปพลิเคชัน"/>
+        <string name="theme" value="ธีม" />
+    </strings>
+
+    <!--印度尼西亚语-->
+    <strings language="in">
+        <string name="singer" value="Penyanyi" />
+        <string name="song_name" value="Nama lagu" />
+        <string name="car_manager" value="Manajemen mobil" />
+        <string name="bt_phone" value="Ponsel bluetooth" />
+        <string name="map" value="Peta" />
+        <string name="music" value="Musik" />
+        <string name="radio" value="Radio" />
+        <string name="video" value="Video" />
+        <string name="file_manager" value="Manajemen file" />
+        <string name="week" value="['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu']" />
+        <string name="ampm" value="['Pagi','Sore']" />
+        <string name="settings" value="Mendirikan"/>
+        <string name="picture" value="Foto"/>
+        <string name="apps" value="Aplikasi"/>
+        <string name="theme" value="Tema" />
+    </strings>
+    <!--缅甸语-->
+    <strings language="my">
+        <string name="singer" value="အဆိုတော်" />
+        <string name="song_name" value="သီချင်းနာမည်" />
+        <string name="car_manager" value="ကားဘဏ္ဍာစိုး" />
+        <string name="bt_phone" value="ဘလူးတုသ်ဖုန်း" />
+        <string name="map" value="မြေပုံ" />
+        <string name="music" value="ဂီတ" />
+        <string name="radio" value="ရေဒီယို" />
+        <string name="video" value="ဗီဒီယို" />
+        <string name="file_manager" value="ဖိုင်စီမံခန့်ခွဲမှု" />
+        <string name="week" value="['တနင်္ဂနွေ','တနင်္လာနေ့','အင်္ဂါ','ဗုဒ္ဓဟူးနေ့','ကြာသပတေးနေ့','သောကြာ','စနေနေ့']" />
+        <string name="ampm" value="['မနက်ခင်း','နေ့ခင်း']" />
+        <string name="settings" value="တည်ဆောက်သည်"/>
+        <string name="picture" value="ရုပ်ပုံလွှာ"/>
+        <string name="apps" value="လျှောက်လွှာ"/>
+        <string name="theme" value="အပြင်အဆင်" />
+    </strings>
+</layout>

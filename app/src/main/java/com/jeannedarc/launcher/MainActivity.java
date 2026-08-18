@@ -172,6 +172,22 @@ public class MainActivity extends Activity {
                     .show());
                 return;
             }
+            // Implicit action, e.g. "action:cn.yunovo.nxos.activity.action.radio".
+            // This is exactly how the stock launcher opens the radio: the theme's
+            // Radio card fires that named action and the firmware routes it to the
+            // media app in FM mode. Firing the same action reproduces the button.
+            if (launchKey.startsWith("action:")) {
+                String act = launchKey.substring("action:".length());
+                try {
+                    Intent in = new Intent(act);
+                    in.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(in);
+                } catch (Exception e) {
+                    runOnUiThread(() -> android.widget.Toast.makeText(MainActivity.this,
+                        "No se pudo abrir: " + act, android.widget.Toast.LENGTH_LONG).show());
+                }
+                return;
+            }
             int slash = launchKey.indexOf('/');
             String packageName = slash >= 0 ? launchKey.substring(0, slash) : launchKey;
             try {

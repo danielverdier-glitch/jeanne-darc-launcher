@@ -320,6 +320,22 @@ function openAppPicker(i){
   empty.innerHTML='<div class="app-icon" style="background:rgba(255,255,255,0.08)">&#x2715;</div><span>Vaciar</span>';
   empty.addEventListener("click",function(){ clearBtn(picIdx); closeAppPicker(); });
   grid.appendChild(empty);
+  // Built-in firmware sources, read out of the stock launcher theme
+  // (launcher.xml): each is an implicit action the firmware routes internally.
+  // These are what the home's Radio/BT cards actually fire.
+  var FIRMWARE = [
+    {name:"Radio FM", pkg:"action:cn.yunovo.nxos.activity.action.radio", icon:"\uD83D\uDCFB"},
+    {name:"Bluetooth", pkg:"action:cn.yunovo.nxos.activity.action.bt", icon:"\uD83D\uDCF1"},
+    {name:"Video", pkg:"action:cn.yunovo.nxos.intent.action.MEDIA_BROWSER", icon:"\uD83C\uDFAC"}
+  ];
+  FIRMWARE.forEach(function(app){
+    var el=document.createElement("div");
+    el.className="app-item";
+    el.innerHTML='<div class="app-icon" style="background:rgba(125,212,240,0.18)">'
+      +app.icon+'</div><span>'+app.name+'</span>';
+    el.addEventListener("click",function(){ assignApp(picIdx,app); closeAppPicker(); });
+    grid.appendChild(el);
+  });
   getInstalledApps().forEach(function(app){
     var el=document.createElement("div");
     el.className="app-item";
