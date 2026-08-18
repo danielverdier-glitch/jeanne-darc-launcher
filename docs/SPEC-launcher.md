@@ -75,3 +75,12 @@ Confirmado con el usuario. Armar TODO junto solo cuando dé la orden
 ## Referencias
 - Acciones del home originales: docs/stock-launcher.xml (launcher.xml
   decompilado del firmware).
+
+## Imágenes de fondo del cajón (limpias, sin barco)
+- Guardadas en repo: docs/backgrounds/fondo_dia.png (1280x720),
+  docs/backgrounds/fondo_noche.png (1280x720).
+- Origen: Google Drive, carpeta "launcher HR350".
+  - fondo_dia.png  → id 1i0nOvC90G9Pm1TBX1wb7nCq0ei7ARERs
+  - fondo_noche.png → id 1AvljCvJK5gR2Xz4WmImTDdnvkFgZid5I
+- Día = playa/mar turquesa · Noche = luna sobre el mar. Usar en el cajón
+  "Mas apps" como fondo día/noche.
