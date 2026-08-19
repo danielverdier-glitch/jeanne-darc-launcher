@@ -169,9 +169,9 @@ html,body{width:100vw;height:100vh;overflow:hidden;background:#0a1622;font-famil
       <div class="np-sub" id="npSub"></div>
     </div>
     <div class="np-btns">
-      <div class="np-b" id="npPrev">&#9198;</div>
-      <div class="np-b" id="npPlay">&#9199;</div>
-      <div class="np-b" id="npNext">&#9197;</div>
+      <div class="np-b" id="npPrev"><svg width="14" height="14" viewBox="0 0 24 24"><path d="M6 6h2v12H6zM20 6L10 12l10 6z" fill="currentColor"/></svg></div>
+      <div class="np-b" id="npPlay"></div>
+      <div class="np-b" id="npNext"><svg width="14" height="14" viewBox="0 0 24 24"><path d="M16 6h2v12h-2zM4 6l10 6-10 6z" fill="currentColor"/></svg></div>
     </div>
   </div>
 </div>
@@ -625,7 +625,13 @@ function pollNowPlaying(){
     title.innerHTML="&#8212;";
     sub.textContent=d.app||"";
   }
-  play.innerHTML=d.playing?"&#9208;":"&#9199;";   // pausa : play
+  // SVG en vez de los caracteres Unicode de pausa/play: el de pausa (⏸) trae
+  // presentacion emoji propia en este WebView y salia como un cuadrado
+  // naranja solido, desentonando con el resto de los botones (blancos, sin
+  // relleno). Un SVG con currentColor siempre respeta el estilo día/noche.
+  play.innerHTML = d.playing
+    ? '<svg width="14" height="14" viewBox="0 0 24 24"><rect x="5" y="4" width="5" height="16" fill="currentColor"/><rect x="14" y="4" width="5" height="16" fill="currentColor"/></svg>'
+    : '<svg width="14" height="14" viewBox="0 0 24 24"><path d="M6 4l14 8-14 8z" fill="currentColor"/></svg>';
 }
 
 // ===== Fuentes del equipo (armado pero DESCONECTADO, para uso futuro) =====
