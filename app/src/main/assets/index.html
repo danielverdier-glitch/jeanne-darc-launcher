@@ -581,6 +581,11 @@ function renderDrawer(){
   // Casilleros especiales primero.
   addDrawerItem(g,"&#8862;","Escritorio\nsistema",function(){ openNativeLauncher(); },true);
   addDrawerItem(g,"&#8962;","Poner como\ninicio",function(){ if(Bridge&&Bridge.openHomeSettings)Bridge.openHomeSettings(); },true);
+  // Capturas para identificar pantallas sin ícono propio (radio, ajustes del
+  // equipo): abrí la pantalla real desde donde la abrías antes, volvé y
+  // tocá el casillero -- queda un archivo en Descargas para mandarle a Claude.
+  addDrawerItem(g,"&#128269;","Capturar\najustes",function(){ if(Bridge&&Bridge.captureConfig)Bridge.captureConfig(); },true);
+  addDrawerItem(g,"&#128269;","Capturar\nradio",function(){ if(Bridge&&Bridge.captureRadio)Bridge.captureRadio(); },true);
   // Apps normales.
   getInstalledApps().forEach(function(app){
     if(app.pkg.indexOf("unlaunchable:")===0) return;

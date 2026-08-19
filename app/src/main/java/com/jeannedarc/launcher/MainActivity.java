@@ -684,14 +684,46 @@ public class MainActivity extends Activity {
          */
         @JavascriptInterface
         public void captureRadio() {
+            captureScreen("la radio", "jeanne-darc-captura-radio.txt");
+        }
+
+        /**
+         * Same idea as captureRadio(), aimed at the OEM's own settings screen
+         * (the dark "WLAN / Navegación / Ajustes radio" one) instead of the
+         * generic Android Settings that com.android.settings opens. Filtering
+         * system apps out of the app picker (so junk like EngineerMode stops
+         * showing up) also hid this one, since it's a system app with no
+         * CATEGORY_LAUNCHER entry of its own -- this reads its real component
+         * the same way captureRadio() read the radio's, so it can be wired up
+         * directly without guessing a package name.
+         */
+        @JavascriptInterface
+        public void captureConfig() {
+            captureScreen("los ajustes del equipo", "jeanne-darc-captura-config.txt");
+        }
+
+        /**
+         * Capture which component was recently in the foreground, so a screen
+         * with no launcher entry of its own (the stock home's Radio button,
+         * the OEM's own Settings) can be identified and copied.
+         *
+         * Android records every move-to-foreground with a timestamp. If the
+         * user opens the target screen and comes back, that record still names
+         * the exact activity that was started -- which is precisely the thing
+         * no amount of static inspection could reveal on its own. Reading it
+         * needs the "usage access" special grant, so the first tap sends the
+         * user to enable it and returns.
+         */
+        private void captureScreen(String what, String fileName) {
             if (!hasUsageAccess()) {
                 runOnUiThread(() -> {
                     new AlertDialog.Builder(MainActivity.this)
                         .setTitle("Falta un permiso (una sola vez)")
-                        .setMessage("Para leer qué pantalla abre el botón Radio, activá "
+                        .setMessage("Para leer qué pantalla abre " + what + ", activá "
                             + "el acceso de uso para JEANNE D'ARC.\n\n"
                             + "1) Te llevo a esa pantalla\n2) Buscá JEANNE D'ARC y activalo\n"
-                            + "3) Volvé y tocá otra vez \"Capturar la radio\"")
+                            + "3) Abrí " + what + " desde donde la abrías antes\n"
+                            + "4) Volvé acá y tocá de nuevo esta opción")
                         .setPositiveButton("Ir a activarlo", (d, w) -> {
                             try {
                                 startActivity(new Intent(
@@ -713,7 +745,7 @@ public class MainActivity extends Activity {
                 try { body = buildCapture(); }
                 catch (Exception e) { body = "ERROR en la captura: " + e; }
                 String where;
-                try { where = writeNamed("jeanne-darc-captura-radio.txt", body); }
+                try { where = writeNamed(fileName, body); }
                 catch (Exception e) { where = null; }
                 final String path = where;
                 runOnUiThread(() -> new AlertDialog.Builder(MainActivity.this)
