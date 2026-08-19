@@ -276,8 +276,11 @@ var DEFAULT_BTNS = [
    svg:'<svg width="26" height="26" viewBox="0 0 22 22" fill="none"><circle cx="11" cy="11" r="3.5" stroke="white" stroke-width="1.6" fill="none"/><path d="M11 2v2M11 18v2M2 11h2M18 11h2M4.1 4.1l1.4 1.4M16.5 16.5l1.4 1.4M4.1 17.9l1.4-1.4M16.5 5.5l1.4-1.4" stroke="white" stroke-width="1.4" stroke-linecap="round"/></svg>'}
 ];
 
-// Los botones fijos (no se cambian ni intercambian): Radio, Mas apps, Config.
-var FIXED = {0:true, 5:true, 6:true};
+// Los botones fijos (no se cambian ni intercambian): Radio, Mas apps.
+// Config queda reasignable: cada firmware tiene su propia app de ajustes
+// (la del sistema puro vs. la del equipo), asi que el usuario elige la suya
+// con mantener presionado -> Cambiar app.
+var FIXED = {0:true, 5:true};
 
 // -- State --
 var btns = DEFAULT_BTNS.map(function(b,i){ return Object.assign({},b,{id:i}); });
@@ -340,7 +343,7 @@ function tapBtn(i){
 
 // -- Context menu --
 function showCtx(i,x,y){
-  if(FIXED[i]) return;   // Radio / Mas apps / Config no se cambian ni intercambian
+  if(FIXED[i]) return;   // Radio / Mas apps no se cambian ni intercambian
   ctxIdx=i;
   var m=document.getElementById("ctxMenu");
   m.style.left=Math.min(x,824)+"px";
@@ -768,11 +771,10 @@ window.addEventListener("resize",scaleToFit);
 
   // Trigger: triple-tap on title opens calibration.
   // Long-press (~900ms) on the title area forces day/night for testing.
-  // Holding further (~2.5s total) additionally simulates navigating at
-  // 5kn heading NE (45°), so speed/heading readouts and the bicolor mast
-  // light can be tested without real GPS movement.
-  var simNav=false;
-  var tapCount=0, tapTimer=null, pressTimer=null, pressTimer2=null;
+  // The navigation-simulation gesture (holding further to fake speed/heading)
+  // was removed: it fought with the real GPS reading (which kept resetting
+  // isNavigating back within a couple seconds) and isn't needed day to day.
+  var tapCount=0, tapTimer=null, pressTimer=null;
   document.getElementById("screen").addEventListener("pointerdown",function(e){
     if(e.target.closest("#iconbar")||e.target.closest(".ctx-menu")||e.target.closest(".overlay")) return;
     if(e.clientY > window.innerHeight*0.3) return;
@@ -781,22 +783,6 @@ window.addEventListener("resize",scaleToFit);
       manualOverride=true; // stop GPS/clock from silently reverting this manual test toggle
       applyMode();
     },900);
-    pressTimer2=setTimeout(function(){
-      simNav=!simNav;
-      if(simNav){
-        gpsOk=true;
-        document.getElementById("spVal").textContent="5.0";
-        document.getElementById("hdVal").textContent="45°";
-        if(navTimer){ clearTimeout(navTimer); navTimer=null; }
-        isNavigating=true;
-        applyMode();
-      }else{
-        document.getElementById("spVal").textContent="--";
-        document.getElementById("hdVal").textContent="--°";
-        isNavigating=false;
-        applyMode();
-      }
-    },2500);
     tapCount++;
     if(tapTimer) clearTimeout(tapTimer);
     tapTimer=setTimeout(function(){ tapCount=0; },800);
@@ -804,11 +790,9 @@ window.addEventListener("resize",scaleToFit);
   });
   document.getElementById("screen").addEventListener("pointerup",function(){
     if(pressTimer){ clearTimeout(pressTimer); pressTimer=null; }
-    if(pressTimer2){ clearTimeout(pressTimer2); pressTimer2=null; }
   });
   document.getElementById("screen").addEventListener("pointercancel",function(){
     if(pressTimer){ clearTimeout(pressTimer); pressTimer=null; }
-    if(pressTimer2){ clearTimeout(pressTimer2); pressTimer2=null; }
   });
 })();
 </script>

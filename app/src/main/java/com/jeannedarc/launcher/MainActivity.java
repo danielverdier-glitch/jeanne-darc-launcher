@@ -332,7 +332,23 @@ public class MainActivity extends Activity {
                 if (!access) return o.toString();
 
                 MediaController c = activeController();
-                if (c == null) return o.toString();
+                if (c == null) {
+                    // The radio is not a real app with a MediaSession -- it's the
+                    // firmware's own tuner screen, started via an implicit action
+                    // (see FUENTES_EQUIPO / "action:" in launchApp). No
+                    // MediaController will ever exist for it, so the widget would
+                    // sit on "—" forever while it's playing. Fall back to naming
+                    // whatever is currently in the foreground, using the same
+                    // "usage access" grant captureRadio() already asks for --
+                    // if it's the radio/media screen, at least show something
+                    // instead of a dead widget.
+                    String fg = currentForegroundLabel();
+                    if (fg != null) {
+                        o.put("app", fg);
+                        o.put("playing", true);
+                    }
+                    return o.toString();
+                }
 
                 String appName = c.getPackageName();
                 try {
@@ -441,6 +457,16 @@ public class MainActivity extends Activity {
                 for (android.content.pm.ApplicationInfo ai : pm.getInstalledApplications(0)) {
                     String pkg = ai.packageName;
                     if (pkg.equals(selfPkg) || seen.contains(pkg)) continue;
+                    // This second pass exists to catch the firmware's own bundled
+                    // screens (the built-in Radio, etc.) that skip CATEGORY_LAUNCHER.
+                    // But most of what only turns up here is internal system
+                    // plumbing (Carrier Setup, EngineerMode, Servicios de Google
+                    // Play, Llavero...) that a driver never wants to tap from the
+                    // app drawer or the button picker. A real user-facing app that
+                    // happens to lack CATEGORY_LAUNCHER is the rare exception, so
+                    // skip anything the system marked FLAG_SYSTEM here -- apps
+                    // found normally in the first pass are unaffected either way.
+                    if ((ai.flags & ApplicationInfo.FLAG_SYSTEM) != 0) continue;
 
                     ComponentName found = null;
                     Intent li = pm.getLaunchIntentForPackage(pkg);
@@ -678,6 +704,37 @@ public class MainActivity extends Activity {
                     .setPositiveButton("OK", null)
                     .show());
             }).start();
+        }
+
+        /**
+         * Label of whatever app is currently on screen, using the same
+         * "usage access" grant captureRadio() uses -- or null if we don't
+         * have that access (most units won't, until the user grants it once
+         * from the drawer / a future prompt) or nothing recent is found.
+         * Only used as a fallback when no MediaController exists, e.g. for
+         * the firmware's own Radio, which never registers a media session.
+         */
+        private String currentForegroundLabel() {
+            if (!hasUsageAccess()) return null;
+            try {
+                android.app.usage.UsageStatsManager usm = (android.app.usage.UsageStatsManager)
+                    getSystemService(USAGE_STATS_SERVICE);
+                long now = System.currentTimeMillis();
+                android.app.usage.UsageEvents ev = usm.queryEvents(now - 60_000, now);
+                android.app.usage.UsageEvents.Event e = new android.app.usage.UsageEvents.Event();
+                String lastPkg = null;
+                while (ev.hasNextEvent()) {
+                    ev.getNextEvent(e);
+                    if (e.getEventType() == android.app.usage.UsageEvents.Event.MOVE_TO_FOREGROUND) {
+                        lastPkg = e.getPackageName();
+                    }
+                }
+                if (lastPkg == null || lastPkg.equals(getPackageName())) return null;
+                try {
+                    ApplicationInfo ai = getPackageManager().getApplicationInfo(lastPkg, 0);
+                    return getPackageManager().getApplicationLabel(ai).toString();
+                } catch (Exception e2) { return lastPkg; }
+            } catch (Exception e) { return null; }
         }
 
         private boolean hasUsageAccess() {
