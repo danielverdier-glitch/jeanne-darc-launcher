@@ -297,6 +297,27 @@ public class MainActivity extends Activity {
             }
         }
 
+        /**
+         * Whether the "usage access" grant is on -- a second, separate
+         * permission from notification access, needed only for the widget's
+         * fallback that names the radio (see currentForegroundLabel()).
+         */
+        @JavascriptInterface
+        public boolean hasUsageAccessPublic() { return hasUsageAccess(); }
+
+        /** Send the user to grant usage access (for the radio in the widget). */
+        @JavascriptInterface
+        public void openUsageAccess() {
+            try {
+                startActivity(new Intent(
+                    android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS));
+            } catch (Exception e) {
+                try {
+                    startActivity(new Intent(android.provider.Settings.ACTION_SETTINGS));
+                } catch (Exception ignored) {}
+            }
+        }
+
         private MediaController activeController() {
             try {
                 MediaSessionManager msm = (MediaSessionManager)
@@ -325,6 +346,7 @@ public class MainActivity extends Activity {
             try {
                 boolean access = hasMediaAccess();
                 o.put("access", access);
+                o.put("usageAccess", hasUsageAccess());
                 o.put("playing", false);
                 o.put("title", "");
                 o.put("artist", "");

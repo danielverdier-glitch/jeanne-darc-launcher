@@ -610,6 +610,13 @@ function pollNowPlaying(){
     sub.textContent="tocá acá";
     return;
   }
+  if(!d.usageAccess){
+    // Sin esto la radio del equipo (que no tiene sesion de musica real)
+    // nunca puede nombrarse -- solo lo que sí usa MediaSession (Spotify, etc).
+    title.innerHTML="&#8212;";
+    sub.textContent="tocá para activar la radio";
+    return;
+  }
   if(d.title){
     title.textContent=d.title;
     var parts=[]; if(d.artist)parts.push(d.artist); if(d.app)parts.push(d.app);
@@ -651,6 +658,7 @@ function init(){
   document.getElementById("npText").addEventListener("click",function(){
     var d={}; try{ d=JSON.parse(Bridge.getNowPlaying()); }catch(e){}
     if(d && d.access===false && Bridge.openMediaAccess) Bridge.openMediaAccess();
+    else if(d && d.access && !d.usageAccess && Bridge.openUsageAccess) Bridge.openUsageAccess();
   });
   setInterval(pollNowPlaying,1500); pollNowPlaying();
   if(navigator.geolocation){
