@@ -784,6 +784,14 @@ public class MainActivity extends Activity {
                     }
                 }
                 if (lastPkg == null || lastPkg.equals(getPackageName())) return null;
+                // Identified via "Capturar radio": this is the firmware's FM
+                // tuner package. Its own app label ("NXOS Player" or similar)
+                // means nothing to the user, so name it plainly instead --
+                // there is no frequency/station text available from outside
+                // the app (nothing exposes it over UsageStats or a provider
+                // found so far), so this is only "Radio" for now, not
+                // "104.3 FM".
+                if ("cn.yunovo.nxos.player".equals(lastPkg)) return "Radio";
                 try {
                     ApplicationInfo ai = getPackageManager().getApplicationInfo(lastPkg, 0);
                     return getPackageManager().getApplicationLabel(ai).toString();
