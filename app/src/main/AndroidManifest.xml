@@ -48,15 +48,13 @@
             android:screenOrientation="landscape"
             android:configChanges="orientation|screenSize|keyboardHidden"
             android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-            <!-- HOME + DEFAULT make the launcher selectable as the startup
-                 screen. Declaring them only makes it eligible in Android's
-                 "home app" picker; it does NOT become the default on its own.
-                 The user opts in from the "Poner como pantalla de inicio"
-                 button, and the test stays a normal app until then. -->
+            <!-- No CATEGORY_LAUNCHER on purpose: once this is the car's
+                 pantalla de inicio, it has no reason to also sit as its own
+                 tile in the OEM's app drawer next to everything else it
+                 already replaces. HOME + DEFAULT alone is enough to keep it
+                 selectable from Configuración -> Apps predeterminadas ->
+                 App principal (or the "Poner como pantalla de inicio"
+                 shortcut in the drawer) even without a visible icon. -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.HOME" />

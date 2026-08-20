@@ -585,22 +585,18 @@ function closeDrawer(){ document.getElementById("drawer").classList.remove("open
 function renderDrawer(){
   var g=document.getElementById("drawerGrid");
   g.innerHTML="";
-  // Casilleros especiales primero.
-  addDrawerItem(g,"&#8862;","Escritorio\nsistema",function(){ openNativeLauncher(); },true);
+  // Casillero especial: unico que queda ademas de las apps.
   addDrawerItem(g,"&#8962;","Poner como\ninicio",function(){ if(Bridge&&Bridge.openHomeSettings)Bridge.openHomeSettings(); },true);
-  // Capturas para identificar pantallas sin ícono propio (radio, ajustes del
-  // equipo): abrí la pantalla real desde donde la abrías antes, volvé y
-  // tocá el casillero -- queda un archivo en Descargas para mandarle a Claude.
-  addDrawerItem(g,"&#128269;","Capturar\najustes",function(){ if(Bridge&&Bridge.captureConfig)Bridge.captureConfig(); },true);
-  addDrawerItem(g,"&#128269;","Capturar\nradio",function(){ if(Bridge&&Bridge.captureRadio)Bridge.captureRadio(); },true);
-  // Informe completo del firmware (providers, configs). Sintonizá la radio
-  // antes de tocarlo para buscar de dónde sale la frecuencia actual.
-  addDrawerItem(g,"&#128203;","Informe\ntécnico",function(){ if(Bridge&&Bridge.dumpSystemInfo)Bridge.dumpSystemInfo(); },true);
-  // Apps normales.
+  // Apps normales. cn.yunovo.nxos.themestore es el escritorio real del
+  // equipo (dibuja el home desde el skin activo) -- se muestra con nombre
+  // e icono propios en vez del de "Tienda de temas".
+  var SIST_ORIGINAL_ICON='<svg width="30" height="30" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="12" rx="1.5" stroke="currentColor" stroke-width="1.6"/><path d="M9 20h6M12 16v4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
   getInstalledApps().forEach(function(app){
     if(app.pkg.indexOf("unlaunchable:")===0) return;
-    var ih=app.iconUrl?'<img src="'+app.iconUrl+'" width="46" height="46" style="border-radius:11px">':'<span>'+(app.icon||"&#x1F4F1;")+'</span>';
-    addDrawerItem(g,ih,app.name,function(){ launchApp(app.pkg); closeDrawer(); },false);
+    var isSist=app.pkg==="cn.yunovo.nxos.themestore";
+    var ih=isSist?SIST_ORIGINAL_ICON
+      :(app.iconUrl?'<img src="'+app.iconUrl+'" width="46" height="46" style="border-radius:11px">':'<span>'+(app.icon||"&#x1F4F1;")+'</span>');
+    addDrawerItem(g,ih,isSist?"Sist original":app.name,function(){ launchApp(app.pkg); closeDrawer(); },false);
   });
 }
 function addDrawerItem(g,iconHtml,name,onclick,special){
