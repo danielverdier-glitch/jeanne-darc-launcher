@@ -244,11 +244,24 @@ public class MainActivity extends Activity {
          */
         @JavascriptInterface
         public void openLauncher() {
+            // Firing a plain ACTION_MAIN+CATEGORY_HOME only worked while we
+            // weren't the default home app -- once the user sets Jeanne D'Arc
+            // as default (which is the whole point), that same intent just
+            // reopens us, so this button did nothing. The informe técnico
+            // shows only three packages declare CATEGORY_HOME on this unit:
+            // us, com.android.settings, and cn.yunovo.nxos.themestore --
+            // and themestore ("Tienda de temas") is the one that actually
+            // draws the stock desktop from the active theme skin, so it's
+            // targeted directly instead of relying on the HOME category.
             try {
-                Intent intent = new Intent(Intent.ACTION_MAIN);
-                intent.addCategory(Intent.CATEGORY_HOME);
+                Intent intent = getPackageManager()
+                    .getLaunchIntentForPackage("cn.yunovo.nxos.themestore");
+                if (intent == null) {
+                    intent = new Intent(Intent.ACTION_MAIN);
+                    intent.setClassName("cn.yunovo.nxos.themestore",
+                        "cn.yunovo.nxos.themestore.ui.activity.MainActivity");
+                }
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                // Use chooser so user can pick another launcher if available
                 startActivity(intent);
             } catch (Exception ignored) {}
         }
